@@ -5,6 +5,7 @@ import os
 import re
 import glob
 import requests
+import json
 from pathlib import Path
 
 def run_command(command: str, cwd: str = None):
@@ -34,7 +35,7 @@ def _get_pytorch_path(pip_executable: str) -> Path:
         raise FileNotFoundError("Could not parse 'Location:' from pip output.")
     except (subprocess.CalledProcessError, FileNotFoundError):
         print("❌ FATAL ERROR: PyTorch is not installed or could not be found in the target environment.", file=sys.stderr)
-        print("   Please ensure 'torch' is installed before attempting to install MIOpen kernels.", file=sys.stderr)
+        print("   'late patch' must install torch before this step. Check the dependency file.", file=sys.stderr)
         sys.exit(1)
 
 def _install_miopen_kernels(torch_path: Path, rocm_version: str, gfx_archs: list[str]):
@@ -54,7 +55,7 @@ def _install_miopen_kernels(torch_path: Path, rocm_version: str, gfx_archs: list
             lines = {k.strip(): v.strip().strip('"') for k, v in (l.split("=", 1) for l in f if "=" in l)}
             if "ID" in lines and lines["ID"] in ["centos", "rhel"]:
                 distro = "rhel"
-                version_id = lines.get("VERSION_ID", "0").split('.')[0] # Major version only
+                version_id = lines.get("VERSION_ID", "0").split('.')[0]
 
     if not distro:
         print("⚠️ WARNING: Unsupported OS for MIOpen kernel download. Skipping.", file=sys.stderr)
@@ -71,7 +72,6 @@ def _install_miopen_kernels(torch_path: Path, rocm_version: str, gfx_archs: list
             for arch in gfx_archs:
                 print(f"  -> Fetching kernels for {arch}...")
                 
-                # Construct URL and determine package type
                 if distro == "ubuntu":
                     repo_url = f"https://repo.radeon.com/rocm/apt/{rocm_version}/pool/main/m/"
                     pkg_pattern = re.compile(rf"miopen-hip-{arch}.*kdb_.*{version_id}.*\.deb")
@@ -81,7 +81,6 @@ def _install_miopen_kernels(torch_path: Path, rocm_version: str, gfx_archs: list
                     pkg_pattern = re.compile(rf"miopen-hip-{arch}.*kdb-.*\.rpm")
                     pkg_type = "rpm"
                 
-                # Find the package file in the repository listing
                 response = s.get(repo_url)
                 response.raise_for_status()
                 matches = pkg_pattern.findall(response.text)
@@ -99,14 +98,12 @@ def _install_miopen_kernels(torch_path: Path, rocm_version: str, gfx_archs: list
                     with open(local_path, 'wb') as f:
                         shutil.copyfileobj(r.raw, f)
 
-                # Extract and install
                 print(f"    Extracting {pkg_filename}...")
                 if pkg_type == "deb":
                     run_command(f"dpkg-deb -xv {local_path.name} .", cwd=temp_dir)
-                else: # rpm
+                else:
                     run_command(f"rpm2cpio {local_path.name} | cpio -idmv", cwd=temp_dir)
 
-            # Copy extracted files to the PyTorch installation
             miopen_src_paths = list(glob.glob(str(temp_dir / "opt/rocm-*/share/miopen")))
             if not miopen_src_paths:
                 print("    No kernel files were extracted. Nothing to copy.")
@@ -121,9 +118,7 @@ def _install_miopen_kernels(torch_path: Path, rocm_version: str, gfx_archs: list
             shutil.rmtree(temp_dir)
 
 def patch_rocm_environment(arch="gfx942", venv_path: str = None, rocm_version="latest", install_kernels=True, build_from_source=False):
-    """
-    Automates patching for the ROCm environment.
-    """
+    """Automates patching for the ROCm environment by reading from a dependency file."""
     python_executable, pip_executable = sys.executable, f"{Path(sys.executable).parent}/pip"
 
     if venv_path:
@@ -141,13 +136,23 @@ def patch_rocm_environment(arch="gfx942", venv_path: str = None, rocm_version="l
         print("❌ FATAL ERROR: 'git' command not found. Please install Git.", file=sys.stderr)
         sys.exit(1)
     
-    print("\n--- 1. Installing Build/ML Dependencies ---")
+    # Load dependencies from the JSON file
+    deps_path = Path(__file__).parent.parent / 'patcher-deps.json'
+    with open(deps_path, 'r') as f:
+        deps = json.load(f)
+
+    build_deps = " ".join(f'"{p}"' for p in deps['build_from_source']['packages'])
+    ml_deps = " ".join(f'"{p}"' for p in deps['machine_learning']['packages'])
+    
+    print("\n--- 1. Installing Dependencies into Target Environment ---")
     run_command(f"{pip_executable} install --upgrade pip")
     if build_from_source:
-        run_command(f"{pip_executable} install ninja cmake wheel pybind11")
-    run_command(f'{pip_executable} install "requests" "numpy" "transformers>=4.40.0" "datasets" "accelerate" "trl" "peft" "wandb" "torch" "scipy"')
+        print("   -> Installing build-time dependencies...")
+        run_command(f"{pip_executable} install {build_deps}")
+    
+    print("   -> Installing core machine learning libraries...")
+    run_command(f"{pip_executable} install {ml_deps}")
 
-    # Step 2: Install MIOpen Kernels if requested
     if install_kernels:
         torch_install_path = _get_pytorch_path(pip_executable)
         gfx_archs = [a.strip() for a in arch.split(';')]
@@ -155,22 +160,20 @@ def patch_rocm_environment(arch="gfx942", venv_path: str = None, rocm_version="l
     else:
         print("\n--- Skipping MIOpen Kernel installation as requested. ---")
 
-    # Step 3: Install ROCm Flash Attention 2
     if build_from_source:
-        print(f"\n--- 3. Building Flash Attention from source for {arch} ---")
+        print(f"\n--- Building Flash Attention from source for {arch} ---")
         if os.path.exists("flash-attention"): shutil.rmtree("flash-attention")
         run_command("git clone https://github.com/ROCm/flash-attention.git")
         build_command = f"MAX_JOBS=$(nproc) GPU_ARCHS='{arch}' {python_executable} setup.py install"
         run_command(build_command, cwd="flash-attention")
         shutil.rmtree("flash-attention", ignore_errors=True)
     else:
-        print(f"\n--- 3. Installing Flash Attention from pre-built wheel ---")
+        print(f"\n--- Installing Flash Attention from pre-built wheel ---")
         wheel_url = "https://github.com/TesslateAI/FlashAttentionDist/raw/main/flash_attn-2.8.3-cp312-cp312-linux_x86_64.whl"
         run_command(f"{pip_executable} install {wheel_url}")
     
-    # Step 4: Verification
-    print("\n--- 4. Verifying Installation in Target Environment ---")
-    verify_script = "import importlib; importlib.invalidate_caches(); import flash_attn; print(f'Successfully imported flash_attn version: {flash_attn.__version__}')"
+    print("\n--- Verifying Installation in Target Environment ---")
+    verify_script = "import importlib; importlib.invalidate_caches(); import flash_attn; print(f'✅ Successfully imported flash_attn version: {flash_attn.__version__}')"
     try:
         run_command(f"{python_executable} -c '{verify_script}'")
         print("\n🎉 Patching complete. Your environment is ready.")

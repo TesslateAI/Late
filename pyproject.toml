@@ -16,19 +16,14 @@ classifiers = [
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
 ]
+
+# Core dependencies: The bare minimum for the CLI and web server
 dependencies = [
     "click",
     "pyyaml",
     "flask",
     "waitress",
     "requests",
-    "transformers>=4.56.2",
-    "datasets",
-    "accelerate",
-    "trl",
-    "peft",
-    "wandb",
-    "torch",
     "Jinja2"
 ]
 
@@ -38,3 +33,20 @@ Issues = "https://github.com/TesslateAI/Late/issues"
 
 [project.scripts]
 late = "late.cli:cli"
+
+# Optional dependencies for a full local training/dev environment
+[project.optional-dependencies]
+training = [
+    "torch",
+    "transformers>=4.56.2",
+    "datasets",
+    "accelerate",
+    "trl",
+    "peft",
+    "wandb",
+    "scipy",
+    "numpy",
+    "ninja",
+    "cmake",
+    "pybind11"
+]

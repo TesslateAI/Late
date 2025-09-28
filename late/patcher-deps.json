@@ -1,0 +1,26 @@
+{
+  "comment": "Define the Python packages to be installed by the 'late patch' command.",
+  "build_from_source": {
+    "comment": "Dependencies needed only when building packages like Flash Attention from source.",
+    "packages": [
+      "ninja",
+      "cmake",
+      "wheel",
+      "pybind11"
+    ]
+  },
+  "machine_learning": {
+    "comment": "The core set of heavy ML libraries for a training environment.",
+    "packages": [
+      "torch",
+      "transformers>=4.40.0",
+      "datasets",
+      "accelerate",
+      "trl",
+      "peft",
+      "wandb",
+      "scipy",
+      "numpy"
+    ]
+  }
+}
