@@ -179,13 +179,10 @@ def patch_rocm_environment(arch="gfx942", venv_path: str = None, rocm_version="l
         wheel_url = "https://github.com/TesslateAI/FlashAttentionDist/raw/main/flash_attn-2.8.3-cp312-cp312-linux_x86_64.whl"
         run_command(f"{pip_executable} install {wheel_url}")
     
+# --- Verifying Installation in Target Environment ---
     print("\n--- Verifying Installation in Target Environment ---")
-    verify_script = (
-        "import importlib; "
-        "importlib.invalidate_caches(); "
-        "import flash_attn; "
-        "print(f'OK - Successfully imported flash_attn version: {flash_attn.__version__}')"
-    )
+    # FIX: Use double quotes inside the python f-string to avoid conflicting with the outer single quotes for the shell command.
+    verify_script = 'import importlib; importlib.invalidate_caches(); import flash_attn; print(f"OK - Successfully imported flash_attn version: {flash_attn.__version__}")'
     try:
         run_command(f"{python_executable} -c '{verify_script}'")
         print("\n[SUCCESS] Patching complete. Your environment is ready.")
