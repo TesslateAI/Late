@@ -6,20 +6,35 @@ from late.engine.config import save_token
 from late.engine.training import run_training_job
 from late.server.app import run_server
 
-# Initialize QueueManager to use a default 'queues' directory
+# Initialize QueueManager to use a default 'queues' directory in the CWD
 qm = QueueManager()
 
 @click.group()
 def cli():
-    """A tool for patching, scheduling, and running training jobs on ROCm."""
+    """
+    Late: A toolkit for patching, scheduling, and running 
+    training jobs on ROCm.
+    """
     pass
 
 @cli.command()
 @click.option('--arch', default='gfx942', help='Target GPU architecture (e.g., gfx942).')
-def patch(arch):
-    """Patches the ROCm environment with Triton and Flash Attention."""
-    click.echo(f"🚀 Patching environment for ROCm architecture: {arch}")
-    patch_rocm_environment(arch)
+@click.option('--venv', 
+              type=click.Path(exists=True, file_okay=False, dir_okay=True, readable=True),
+              help='Path to the virtual environment directory to patch.')
+def patch(arch, venv):
+    """
+    Patches an environment with Triton and Flash Attention.
+    
+    By default, it patches the current environment where 'late' is installed.
+    Use the --venv flag to target a specific virtual environment.
+    """
+    if venv:
+        click.echo(f"🚀 Patching virtual environment at '{os.path.abspath(venv)}' for ROCm arch: {arch}")
+    else:
+        click.echo(f"🚀 Patching current environment for ROCm arch: {arch}")
+    
+    patch_rocm_environment(arch=arch, venv_path=venv)
 
 @cli.command()
 @click.argument('config_path', type=click.Path(exists=True))
@@ -37,7 +52,8 @@ def list_queues():
     """List all available training queues."""
     queues = qm.list_queues()
     if not queues:
-        click.echo("No queues found. Create one with `late queue create <name>.qml`")
+        click.echo("No queues found in the './queues' directory.")
+        click.echo("Create one with `late queue create <name>.qml`")
         return
     click.echo("Available Queues:")
     for q in queues:
@@ -85,7 +101,7 @@ def start_queue(queue_name):
 @click.argument('key', type=click.Choice(['wandb', 'hf_token'], case_sensitive=False))
 @click.argument('token')
 def set(key, token):
-    """Set API tokens (wandb, hf_token)."""
+    """Set global API tokens (wandb, hf_token)."""
     save_token(key, token)
 
 @cli.command()
@@ -93,7 +109,7 @@ def set(key, token):
 def serve(port):
     """Launch the web dashboard."""
     click.echo(f"🌐 Launching web dashboard at http://0.0.0.0:{port}")
-    click.echo("Use Ctrl+C to shut down.")
+    click.echo("Access it from your browser. Use Ctrl+C to shut down.")
     run_server(port=port)
 
 if __name__ == '__main__':
