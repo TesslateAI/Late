@@ -22,7 +22,7 @@ def cli():
 @click.option('--from-source', is_flag=True, default=False, help='Build Flash Attention from source instead of using pre-built wheel.')
 def patch(arch, venv, rocm_version, no_kernels, from_source):
     """Patches an environment with ROCm optimizations."""
-    click.echo(f"🚀 Starting ROCm Patching Process...")
+    click.echo("--- Starting ROCm Patching Process ---")
     click.echo(f"  - Target Architecture(s): {arch}")
     click.echo(f"  - Target Environment: {'Virtual env at ' + os.path.abspath(venv) if venv else 'Current active or global environment'}")
     click.echo(f"  - MIOpen Kernels: {'Skipping' if no_kernels else 'Installing for ROCm ' + rocm_version}")
@@ -85,14 +85,14 @@ def start_queue(queue_name):
     if not jobs:
         click.echo(f"Queue '{queue_name}' is empty or does not exist.")
         return
-    click.echo(f"▶️ Starting queue '{queue_name}' with {len(jobs)} jobs.")
+    click.echo(f"Starting queue '{queue_name}' with {len(jobs)} jobs.")
     for i, config_path in enumerate(jobs):
         click.echo(f"\n--- Running job {i+1}/{len(jobs)} ---")
         if not os.path.exists(config_path):
-            click.echo(f"⚠️ Warning: Config file not found, skipping: {config_path}", err=True)
+            click.echo(f"[WARN] Config file not found, skipping: {config_path}", err=True)
             continue
         run_training_job(config_path)
-    click.echo(f"\n🎉 Queue '{queue_name}' finished.")
+    click.echo(f"\nQueue '{queue_name}' finished.")
 
 @cli.command()
 @click.argument('key', type=click.Choice(['wandb', 'hf_token'], case_sensitive=False))
@@ -105,7 +105,7 @@ def set(key, token):
 @click.option('--port', default=8080, help='Port to run the web dashboard on.')
 def serve(port):
     """Launch the web dashboard."""
-    click.echo(f"🌐 Launching web dashboard at http://0.0.0.0:{port}")
+    click.echo(f"Launching web dashboard at http://0.0.0.0:{port}")
     click.echo("Access it from your browser. Use Ctrl+C to shut down.")
     run_server(port=port)
 

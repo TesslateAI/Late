@@ -10,7 +10,7 @@ from pathlib import Path
 
 def run_command(command: str, cwd: str = None):
     """Executes a shell command and streams its output."""
-    print(f"🔩 Executing: {command}")
+    print(f"[EXEC] {command}")
     process = subprocess.Popen(
         command, shell=True, executable='/bin/bash',
         stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, cwd=cwd
@@ -19,22 +19,22 @@ def run_command(command: str, cwd: str = None):
         print(line, end='')
     process.wait()
     if process.returncode != 0:
-        print(f"\n{'='*60}\n❌ ERROR: Command failed with exit code {process.returncode}\n❌ Command: {command}\n{'='*60}", file=sys.stderr)
+        print(f"\n{'='*60}\n[ERROR] Command failed with exit code {process.returncode}\n[ERROR] Command: {command}\n{'='*60}", file=sys.stderr)
         sys.exit(process.returncode)
 
 def _get_pytorch_path(pip_executable: str) -> Path:
     """Finds the installation path of PyTorch in the target environment."""
     try:
-        print("🔍 Finding PyTorch installation path...")
+        print("[INFO] Finding PyTorch installation path...")
         result = subprocess.check_output([pip_executable, 'show', 'torch'], text=True)
         for line in result.splitlines():
             if line.startswith('Location:'):
                 path = Path(line.split(':', 1)[1].strip())
-                print(f"✅ Found PyTorch at: {path}")
+                print(f"[OK] Found PyTorch at: {path}")
                 return path
         raise FileNotFoundError("Could not parse 'Location:' from pip output.")
     except (subprocess.CalledProcessError, FileNotFoundError):
-        print("❌ FATAL ERROR: PyTorch is not installed or could not be found in the target environment.", file=sys.stderr)
+        print("[ERROR] PyTorch is not installed or could not be found in the target environment.", file=sys.stderr)
         print("   'late patch' must install torch before this step. Check the dependency file.", file=sys.stderr)
         sys.exit(1)
 
@@ -57,10 +57,10 @@ def _install_miopen_kernels(torch_path: Path, rocm_version: str, gfx_archs: list
                 version_id = lines.get("VERSION_ID", "0").split('.')[0]
 
     if not distro:
-        print("⚠️ WARNING: Unsupported OS for MIOpen kernel download. Skipping.", file=sys.stderr)
+        print("[WARN] Unsupported OS for MIOpen kernel download. Skipping.", file=sys.stderr)
         return
 
-    print(f"OS Detected: {distro.capitalize()} {version_id}")
+    print(f"[INFO] OS Detected: {distro.capitalize()} {version_id}")
     
     with requests.Session() as s:
         temp_dir = Path("./miopen_kernels_temp")
@@ -84,7 +84,7 @@ def _install_miopen_kernels(torch_path: Path, rocm_version: str, gfx_archs: list
                 response.raise_for_status()
                 matches = pkg_pattern.findall(response.text)
                 if not matches:
-                    print(f"    ⚠️ WARNING: No MIOpen kernel package found for {arch} at {repo_url}. Skipping.", file=sys.stderr)
+                    print(f"    [WARN] No MIOpen kernel package found for {arch} at {repo_url}. Skipping.", file=sys.stderr)
                     continue
 
                 pkg_filename = matches[0]
@@ -111,7 +111,7 @@ def _install_miopen_kernels(torch_path: Path, rocm_version: str, gfx_archs: list
             target_dir = torch_path / "torch/share/miopen"
             print(f"    Copying kernel files to {target_dir}...")
             shutil.copytree(miopen_src_paths[0], target_dir, dirs_exist_ok=True)
-            print("✅ MIOpen kernels installed successfully.")
+            print("[OK] MIOpen kernels installed successfully.")
 
         finally:
             shutil.rmtree(temp_dir)
@@ -119,31 +119,29 @@ def _install_miopen_kernels(torch_path: Path, rocm_version: str, gfx_archs: list
 def patch_rocm_environment(arch="gfx942", venv_path: str = None, rocm_version="latest", install_kernels=True, build_from_source=False):
     """Automates patching for the ROCm environment by reading from a dependency file."""
     
-    # --- FIX 1: Correctly determine the python and pip executables ---
+    # Correctly determine the python and pip executables
     if venv_path:
-        # User has provided an explicit path to a venv
         venv_path_obj = Path(venv_path).resolve()
         python_executable = str(venv_path_obj / "bin/python")
         pip_executable = str(venv_path_obj / "bin/pip")
         if not Path(python_executable).exists():
-            print(f"❌ FATAL ERROR: Python executable not found at '{python_executable}'.", file=sys.stderr)
+            print(f"[ERROR] Python executable not found at '{python_executable}'.", file=sys.stderr)
             sys.exit(1)
-        print(f"🎯 Targeting explicit virtual environment at: {venv_path_obj}")
-    elif 'VIRTUAL_ENV' in os.environ:
-        # We are running inside an activated venv
-        venv_path_obj = Path(os.environ['VIRTUAL_ENV']).resolve()
-        python_executable = str(venv_path_obj / "bin/python")
-        pip_executable = str(venv_path_obj / "bin/pip")
-        print(f"🎯 Targeting active virtual environment at: {venv_path_obj}")
+        print(f"[INFO] Targeting explicit virtual environment at: {venv_path_obj}")
+    elif sys.prefix != sys.base_prefix:
+        # A virtual environment is active, trust sys.executable
+        python_executable = sys.executable
+        pip_executable = str(Path(sys.executable).parent / "pip")
+        print(f"[INFO] Targeting active virtual environment at: {sys.prefix}")
     else:
         # Fallback to the global/system environment
         python_executable = sys.executable
-        pip_executable = f"{Path(sys.executable).parent}/pip"
-        print(f"🎯 Targeting current/global Python environment.")
-        print("   -> WARNING: It is highly recommended to use a virtual environment.", file=sys.stderr)
+        pip_executable = str(Path(sys.executable).parent / "pip")
+        print(f"[INFO] Targeting current/global Python environment.")
+        print("[WARN] It is highly recommended to use a virtual environment.", file=sys.stderr)
 
     if shutil.which('git') is None:
-        print("❌ FATAL ERROR: 'git' command not found. Please install Git.", file=sys.stderr)
+        print("[ERROR] 'git' command not found. Please install Git.", file=sys.stderr)
         sys.exit(1)
     
     deps_path = Path(__file__).parent.parent / 'patcher-deps.json'
@@ -181,7 +179,6 @@ def patch_rocm_environment(arch="gfx942", venv_path: str = None, rocm_version="l
         wheel_url = "https://github.com/TesslateAI/FlashAttentionDist/raw/main/flash_attn-2.8.3-cp312-cp312-linux_x86_64.whl"
         run_command(f"{pip_executable} install {wheel_url}")
     
-    # --- FIX 2: Make the verification script ASCII-safe to avoid SyntaxError ---
     print("\n--- Verifying Installation in Target Environment ---")
     verify_script = (
         "import importlib; "
@@ -191,7 +188,7 @@ def patch_rocm_environment(arch="gfx942", venv_path: str = None, rocm_version="l
     )
     try:
         run_command(f"{python_executable} -c '{verify_script}'")
-        print("\n🎉 Patching complete. Your environment is ready.")
+        print("\n[SUCCESS] Patching complete. Your environment is ready.")
     except SystemExit:
-        print(f"\n❌ VERIFICATION FAILED. Could not import a required library.", file=sys.stderr)
+        print(f"\n[ERROR] Verification failed. Could not import a required library.", file=sys.stderr)
         sys.exit(1)
