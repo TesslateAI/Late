@@ -24,7 +24,7 @@ def patch(arch, venv, rocm_version, no_kernels, from_source):
     """Patches an environment with ROCm optimizations."""
     click.echo(f"🚀 Starting ROCm Patching Process...")
     click.echo(f"  - Target Architecture(s): {arch}")
-    click.echo(f"  - Target Environment: {'Virtual env at ' + os.path.abspath(venv) if venv else 'Current environment'}")
+    click.echo(f"  - Target Environment: {'Virtual env at ' + os.path.abspath(venv) if venv else 'Current active or global environment'}")
     click.echo(f"  - MIOpen Kernels: {'Skipping' if no_kernels else 'Installing for ROCm ' + rocm_version}")
     click.echo(f"  - Flash Attention: {'Building from source' if from_source else 'Using pre-built wheel'}")
     

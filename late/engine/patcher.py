@@ -42,7 +42,6 @@ def _install_miopen_kernels(torch_path: Path, rocm_version: str, gfx_archs: list
     """Downloads and installs the MIOpen kernel databases."""
     print("\n--- Installing MIOpen Kernel Databases for PyTorch ---")
     
-    # OS Detection
     distro, version_id = "", ""
     if Path("/etc/lsb-release").exists():
         with open("/etc/lsb-release", "r") as f:
@@ -74,11 +73,11 @@ def _install_miopen_kernels(torch_path: Path, rocm_version: str, gfx_archs: list
                 
                 if distro == "ubuntu":
                     repo_url = f"https://repo.radeon.com/rocm/apt/{rocm_version}/pool/main/m/"
-                    pkg_pattern = re.compile(rf"miopen-hip-{arch}.*kdb_.*{version_id}.*\.deb")
+                    pkg_pattern = re.compile(rf'href="(miopen-hip-{arch}[^"]*kdb_[^"]*{version_id}[^"]*\.deb)"')
                     pkg_type = "deb"
                 else: # rhel
                     repo_url = f"https://repo.radeon.com/rocm/rhel{version_id}/{rocm_version}/main/"
-                    pkg_pattern = re.compile(rf"miopen-hip-{arch}.*kdb-.*\.rpm")
+                    pkg_pattern = re.compile(rf'href="(miopen-hip-{arch}[^"]*kdb-[^"]*\.rpm)"')
                     pkg_type = "rpm"
                 
                 response = s.get(repo_url)
@@ -119,24 +118,34 @@ def _install_miopen_kernels(torch_path: Path, rocm_version: str, gfx_archs: list
 
 def patch_rocm_environment(arch="gfx942", venv_path: str = None, rocm_version="latest", install_kernels=True, build_from_source=False):
     """Automates patching for the ROCm environment by reading from a dependency file."""
-    python_executable, pip_executable = sys.executable, f"{Path(sys.executable).parent}/pip"
-
+    
+    # --- FIX 1: Correctly determine the python and pip executables ---
     if venv_path:
+        # User has provided an explicit path to a venv
         venv_path_obj = Path(venv_path).resolve()
-        py_exec, pip_exec = venv_path_obj / "bin/python", venv_path_obj / "bin/pip"
-        if not py_exec.exists():
-            print(f"❌ FATAL ERROR: Python executable not found at '{py_exec}'.", file=sys.stderr)
+        python_executable = str(venv_path_obj / "bin/python")
+        pip_executable = str(venv_path_obj / "bin/pip")
+        if not Path(python_executable).exists():
+            print(f"❌ FATAL ERROR: Python executable not found at '{python_executable}'.", file=sys.stderr)
             sys.exit(1)
-        python_executable, pip_executable = str(py_exec), str(pip_exec)
-        print(f"🎯 Targeting virtual environment at: {venv_path_obj}")
+        print(f"🎯 Targeting explicit virtual environment at: {venv_path_obj}")
+    elif 'VIRTUAL_ENV' in os.environ:
+        # We are running inside an activated venv
+        venv_path_obj = Path(os.environ['VIRTUAL_ENV']).resolve()
+        python_executable = str(venv_path_obj / "bin/python")
+        pip_executable = str(venv_path_obj / "bin/pip")
+        print(f"🎯 Targeting active virtual environment at: {venv_path_obj}")
     else:
+        # Fallback to the global/system environment
+        python_executable = sys.executable
+        pip_executable = f"{Path(sys.executable).parent}/pip"
         print(f"🎯 Targeting current/global Python environment.")
+        print("   -> WARNING: It is highly recommended to use a virtual environment.", file=sys.stderr)
 
     if shutil.which('git') is None:
         print("❌ FATAL ERROR: 'git' command not found. Please install Git.", file=sys.stderr)
         sys.exit(1)
     
-    # Load dependencies from the JSON file
     deps_path = Path(__file__).parent.parent / 'patcher-deps.json'
     with open(deps_path, 'r') as f:
         deps = json.load(f)
@@ -172,8 +181,14 @@ def patch_rocm_environment(arch="gfx942", venv_path: str = None, rocm_version="l
         wheel_url = "https://github.com/TesslateAI/FlashAttentionDist/raw/main/flash_attn-2.8.3-cp312-cp312-linux_x86_64.whl"
         run_command(f"{pip_executable} install {wheel_url}")
     
+    # --- FIX 2: Make the verification script ASCII-safe to avoid SyntaxError ---
     print("\n--- Verifying Installation in Target Environment ---")
-    verify_script = "import importlib; importlib.invalidate_caches(); import flash_attn; print(f'✅ Successfully imported flash_attn version: {flash_attn.__version__}')"
+    verify_script = (
+        "import importlib; "
+        "importlib.invalidate_caches(); "
+        "import flash_attn; "
+        "print(f'OK - Successfully imported flash_attn version: {flash_attn.__version__}')"
+    )
     try:
         run_command(f"{python_executable} -c '{verify_script}'")
         print("\n🎉 Patching complete. Your environment is ready.")
