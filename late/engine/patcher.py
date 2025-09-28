@@ -34,7 +34,7 @@ def run_command(command: str, cwd: str = None, venv_path: str = None):
         print(f"{'='*60}", file=sys.stderr)
         sys.exit(process.returncode)
 
-def patch_rocm_environment(arch="gfx942", venv_path: str = None):
+def patch_rocm_environment(arch="gfx942", venv_path: str = None, build_from_source: bool = False):
     """
     Automates patching for the ROCm environment, targeting either the global
     environment or a specified virtual environment.
@@ -71,39 +71,34 @@ def patch_rocm_environment(arch="gfx942", venv_path: str = None):
     # --- Step 1: Install Build-time Dependencies ---
     print("\n--- 1. Installing Build-time Dependencies ---")
     run_command(f"{pip_executable} install --upgrade pip")
-    run_command(f"{pip_executable} install ninja cmake wheel pybind11")
+    if build_from_source:
+        run_command(f"{pip_executable} install ninja cmake wheel pybind11")
 
-    # --- Step 2: Build and Install Triton from Source ---
-    print("\n--- 2. Building and Installing Triton from Source ---")
-    if os.path.exists("triton"): shutil.rmtree("triton")
-    run_command("git clone https://github.com/triton-lang/triton.git")
-    # Use the targeted pip to install into the correct environment
-    run_command(f"{pip_executable} install -e ./python", cwd="triton")
-    print("Cleaning up Triton source directory...")
-    shutil.rmtree("triton", ignore_errors=True)
+    # --- Step 2: Install Core ML Libraries ---
+    print("\n--- 2. Installing Core ML Libraries ---")
+    run_command(f'{pip_executable} install "numpy" "transformers>=4.56.2" "datasets" "accelerate" "trl" "peft" "wandb" "torch" "scipy"')
 
-    # --- Step 3: Install Core ML Libraries ---
-    print("\n--- 3. Installing Core ML Libraries ---")
-    run_command(f'{pip_executable} install "numpy<2" "transformers>=4.40.0" "datasets" "accelerate" "trl" "peft" "wandb" "torch" "scipy"')
+    # --- Step 3: Install ROCm Flash Attention 2 ---
+    if build_from_source:
+        print(f"\n--- 3. Building and Installing ROCm Flash Attention 2 from source for {arch} ---")
+        if os.path.exists("flash-attention"): shutil.rmtree("flash-attention")
+        run_command("git clone https://github.com/ROCm/flash-attention.git")
+        # Use the targeted python executable to run the setup script
+        build_command = f"MAX_JOBS=$(nproc) GPU_ARCHS={arch} {python_executable} setup.py install"
+        run_command(build_command, cwd="flash-attention")
+        print("Cleaning up Flash Attention source directory...")
+        shutil.rmtree("flash-attention", ignore_errors=True)
+    else:
+        print(f"\n--- 3. Installing ROCm Flash Attention 2 from pre-built wheel ---")
+        wheel_url = "https://github.com/TesslateAI/FlashAttentionDist/raw/main/flash_attn-2.8.3-cp312-cp312-linux_x86_64.whl"
+        run_command(f"{pip_executable} install {wheel_url}")
 
-    # --- Step 4: Build and Install ROCm Flash Attention 2 ---
-    print(f"\n--- 4. Building and Installing ROCm Flash Attention 2 for {arch} ---")
-    if os.path.exists("flash-attention"): shutil.rmtree("flash-attention")
-    run_command("git clone https://github.com/ROCm/flash-attention.git")
-    # Use the targeted python executable to run the setup script
-    build_command = f"MAX_JOBS=$(nproc) GPU_ARCHS={arch} {python_executable} setup.py install"
-    run_command(build_command, cwd="flash-attention")
-    print("Cleaning up Flash Attention source directory...")
-    shutil.rmtree("flash-attention", ignore_errors=True)
-
-    # --- Step 5: Verification ---
-    print("\n--- 5. Verifying Installation in Target Environment ---")
+    # --- Step 4: Verification ---
+    print("\n--- 4. Verifying Installation in Target Environment ---")
     verify_script = (
         "import importlib; "
         "importlib.invalidate_caches(); "
-        "import triton; "
         "import flash_attn; "
-        "print(f'Successfully imported Triton version: {triton.__version__}'); "
         "print(f'Successfully imported flash_attn version: {flash_attn.__version__}')"
     )
     

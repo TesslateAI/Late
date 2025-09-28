@@ -7,7 +7,7 @@
 
 ## ✨ Key Features
 
--   **Automated Environment Patching**: A single command (`late patch`) installs and configures complex dependencies like Triton and Flash Attention from source, targeting either your global environment or a specific Python virtual environment.
+-   **Automated Environment Patching**: A single command (`late patch`) installs and configures Flash Attention for ROCm, targeting either your global environment or a specific Python virtual environment. By default uses pre-built wheels, with optional source building.
 -   **Declarative Training Jobs**: Define all aspects of your training runs—from model choice to hyperparameters—in simple, readable YAML configuration files.
 -   **Batch Queue Management**: Group multiple training configs into `.qml` queue files to run them sequentially. Perfect for running a series of experiments overnight.
 -   **Versatile CLI**: Manage every aspect of your workflow from the terminal, including patching, training, and queue management.
@@ -75,16 +75,22 @@ The `late` CLI is the primary way to interact with the library.
 
 ### Environment Patching (`late patch`)
 
-Prepares a Python environment for ROCm training. It automatically installs Triton, Flash Attention, and other core libraries.
+Prepares a Python environment for ROCm training. It automatically installs Flash Attention and other core ML libraries. By default, Flash Attention is installed from a pre-built wheel, but you can build from source using the `--source` flag.
 
 **Usage:**
 ```bash
-# Patch the current environment for a gfx942 GPU
+# Patch the current environment for a gfx942 GPU (uses pre-built wheel)
 late patch --arch gfx942
+
+# Build Flash Attention from source
+late patch --arch gfx942 --source
 
 # Create a venv and patch it specifically (recommended)
 python3 -m venv my_env
 late patch --venv ./my_env
+
+# Patch venv and build from source
+late patch --venv ./my_env --source
 ```
 
 ### Running a Single Training Job (`late train`)

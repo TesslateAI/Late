@@ -22,19 +22,26 @@ def cli():
 @click.option('--venv', 
               type=click.Path(exists=True, file_okay=False, dir_okay=True, readable=True),
               help='Path to the virtual environment directory to patch.')
-def patch(arch, venv):
+@click.option('--source', is_flag=True, help='Build Flash Attention from source instead of using pre-built wheel.')
+def patch(arch, venv, source):
     """
-    Patches an environment with Triton and Flash Attention.
+    Patches an environment with Flash Attention for ROCm.
     
     By default, it patches the current environment where 'late' is installed.
     Use the --venv flag to target a specific virtual environment.
+    Use the --source flag to build Flash Attention from source instead of using pre-built wheel.
     """
     if venv:
         click.echo(f"🚀 Patching virtual environment at '{os.path.abspath(venv)}' for ROCm arch: {arch}")
     else:
         click.echo(f"🚀 Patching current environment for ROCm arch: {arch}")
     
-    patch_rocm_environment(arch=arch, venv_path=venv)
+    if source:
+        click.echo("📦 Building Flash Attention from source")
+    else:
+        click.echo("📦 Using pre-built Flash Attention wheel")
+    
+    patch_rocm_environment(arch=arch, venv_path=venv, build_from_source=source)
 
 @cli.command()
 @click.argument('config_path', type=click.Path(exists=True))
