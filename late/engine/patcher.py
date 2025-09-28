@@ -2,112 +2,178 @@ import subprocess
 import sys
 import shutil
 import os
+import re
+import glob
+import requests
 from pathlib import Path
 
-def run_command(command: str, cwd: str = None, venv_path: str = None):
-    """
-    Executes a shell command, potentially within a virtual environment,
-    and streams its output. Exits the program if the command fails.
-    """
+def run_command(command: str, cwd: str = None):
+    """Executes a shell command and streams its output."""
     print(f"🔩 Executing: {command}")
-
-    # The command is executed in a shell, which will respect an activated venv
-    # if the script itself is run from within one. We don't need complex activation logic.
     process = subprocess.Popen(
-        command,
-        shell=True,
-        executable='/bin/bash', # Use bash for consistency
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        text=True,
-        cwd=cwd
+        command, shell=True, executable='/bin/bash',
+        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, cwd=cwd
     )
-
     for line in process.stdout:
         print(line, end='')
-
     process.wait()
     if process.returncode != 0:
-        print(f"\n{'='*60}", file=sys.stderr)
-        print(f"❌ ERROR: Command failed with exit code {process.returncode}", file=sys.stderr)
-        print(f"❌ Command: {command}", file=sys.stderr)
-        print(f"{'='*60}", file=sys.stderr)
+        print(f"\n{'='*60}\n❌ ERROR: Command failed with exit code {process.returncode}\n❌ Command: {command}\n{'='*60}", file=sys.stderr)
         sys.exit(process.returncode)
 
-def patch_rocm_environment(arch="gfx942", venv_path: str = None, build_from_source: bool = False):
+def _get_pytorch_path(pip_executable: str) -> Path:
+    """Finds the installation path of PyTorch in the target environment."""
+    try:
+        print("🔍 Finding PyTorch installation path...")
+        result = subprocess.check_output([pip_executable, 'show', 'torch'], text=True)
+        for line in result.splitlines():
+            if line.startswith('Location:'):
+                path = Path(line.split(':', 1)[1].strip())
+                print(f"✅ Found PyTorch at: {path}")
+                return path
+        raise FileNotFoundError("Could not parse 'Location:' from pip output.")
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        print("❌ FATAL ERROR: PyTorch is not installed or could not be found in the target environment.", file=sys.stderr)
+        print("   Please ensure 'torch' is installed before attempting to install MIOpen kernels.", file=sys.stderr)
+        sys.exit(1)
+
+def _install_miopen_kernels(torch_path: Path, rocm_version: str, gfx_archs: list[str]):
+    """Downloads and installs the MIOpen kernel databases."""
+    print("\n--- Installing MIOpen Kernel Databases for PyTorch ---")
+    
+    # OS Detection
+    distro, version_id = "", ""
+    if Path("/etc/lsb-release").exists():
+        with open("/etc/lsb-release", "r") as f:
+            for line in f:
+                if line.startswith("DISTRIB_RELEASE="):
+                    distro = "ubuntu"
+                    version_id = line.split("=")[1].strip()
+    elif Path("/etc/os-release").exists():
+        with open("/etc/os-release", "r") as f:
+            lines = {k.strip(): v.strip().strip('"') for k, v in (l.split("=", 1) for l in f if "=" in l)}
+            if "ID" in lines and lines["ID"] in ["centos", "rhel"]:
+                distro = "rhel"
+                version_id = lines.get("VERSION_ID", "0").split('.')[0] # Major version only
+
+    if not distro:
+        print("⚠️ WARNING: Unsupported OS for MIOpen kernel download. Skipping.", file=sys.stderr)
+        return
+
+    print(f"OS Detected: {distro.capitalize()} {version_id}")
+    
+    with requests.Session() as s:
+        temp_dir = Path("./miopen_kernels_temp")
+        if temp_dir.exists(): shutil.rmtree(temp_dir)
+        temp_dir.mkdir()
+
+        try:
+            for arch in gfx_archs:
+                print(f"  -> Fetching kernels for {arch}...")
+                
+                # Construct URL and determine package type
+                if distro == "ubuntu":
+                    repo_url = f"https://repo.radeon.com/rocm/apt/{rocm_version}/pool/main/m/"
+                    pkg_pattern = re.compile(rf"miopen-hip-{arch}.*kdb_.*{version_id}.*\.deb")
+                    pkg_type = "deb"
+                else: # rhel
+                    repo_url = f"https://repo.radeon.com/rocm/rhel{version_id}/{rocm_version}/main/"
+                    pkg_pattern = re.compile(rf"miopen-hip-{arch}.*kdb-.*\.rpm")
+                    pkg_type = "rpm"
+                
+                # Find the package file in the repository listing
+                response = s.get(repo_url)
+                response.raise_for_status()
+                matches = pkg_pattern.findall(response.text)
+                if not matches:
+                    print(f"    ⚠️ WARNING: No MIOpen kernel package found for {arch} at {repo_url}. Skipping.", file=sys.stderr)
+                    continue
+
+                pkg_filename = matches[0]
+                download_url = f"{repo_url}{pkg_filename}"
+                local_path = temp_dir / pkg_filename
+                
+                print(f"    Downloading {pkg_filename}...")
+                with s.get(download_url, stream=True) as r:
+                    r.raise_for_status()
+                    with open(local_path, 'wb') as f:
+                        shutil.copyfileobj(r.raw, f)
+
+                # Extract and install
+                print(f"    Extracting {pkg_filename}...")
+                if pkg_type == "deb":
+                    run_command(f"dpkg-deb -xv {local_path.name} .", cwd=temp_dir)
+                else: # rpm
+                    run_command(f"rpm2cpio {local_path.name} | cpio -idmv", cwd=temp_dir)
+
+            # Copy extracted files to the PyTorch installation
+            miopen_src_paths = list(glob.glob(str(temp_dir / "opt/rocm-*/share/miopen")))
+            if not miopen_src_paths:
+                print("    No kernel files were extracted. Nothing to copy.")
+                return
+
+            target_dir = torch_path / "torch/share/miopen"
+            print(f"    Copying kernel files to {target_dir}...")
+            shutil.copytree(miopen_src_paths[0], target_dir, dirs_exist_ok=True)
+            print("✅ MIOpen kernels installed successfully.")
+
+        finally:
+            shutil.rmtree(temp_dir)
+
+def patch_rocm_environment(arch="gfx942", venv_path: str = None, rocm_version="latest", install_kernels=True, build_from_source=False):
     """
-    Automates patching for the ROCm environment, targeting either the global
-    environment or a specified virtual environment.
+    Automates patching for the ROCm environment.
     """
-    python_executable = sys.executable
-    pip_executable = f"{Path(sys.executable).parent}/pip"
+    python_executable, pip_executable = sys.executable, f"{Path(sys.executable).parent}/pip"
 
     if venv_path:
         venv_path_obj = Path(venv_path).resolve()
-        py_exec = venv_path_obj / "bin" / "python"
-        pip_exec = venv_path_obj / "bin" / "pip"
-
+        py_exec, pip_exec = venv_path_obj / "bin/python", venv_path_obj / "bin/pip"
         if not py_exec.exists():
             print(f"❌ FATAL ERROR: Python executable not found at '{py_exec}'.", file=sys.stderr)
-            print("Please provide a valid path to a virtual environment directory.", file=sys.stderr)
             sys.exit(1)
-        
-        python_executable = str(py_exec)
-        pip_executable = str(pip_exec)
+        python_executable, pip_executable = str(py_exec), str(pip_exec)
         print(f"🎯 Targeting virtual environment at: {venv_path_obj}")
-
     else:
-        print("🎯 Targeting current/global Python environment.")
-        print(f"   - Python: {python_executable}")
-        print("   - To target a specific venv, use the --venv flag.")
+        print(f"🎯 Targeting current/global Python environment.")
 
-    print("🚀 Starting ROCm patching process. This will take a while.")
-
-    # --- Prerequisite Check ---
     if shutil.which('git') is None:
         print("❌ FATAL ERROR: 'git' command not found. Please install Git.", file=sys.stderr)
         sys.exit(1)
-
-    # --- Step 1: Install Build-time Dependencies ---
-    print("\n--- 1. Installing Build-time Dependencies ---")
+    
+    print("\n--- 1. Installing Build/ML Dependencies ---")
     run_command(f"{pip_executable} install --upgrade pip")
     if build_from_source:
         run_command(f"{pip_executable} install ninja cmake wheel pybind11")
+    run_command(f'{pip_executable} install "requests" "numpy" "transformers>=4.40.0" "datasets" "accelerate" "trl" "peft" "wandb" "torch" "scipy"')
 
-    # --- Step 2: Install Core ML Libraries ---
-    print("\n--- 2. Installing Core ML Libraries ---")
-    run_command(f'{pip_executable} install "numpy" "transformers>=4.56.2" "datasets" "accelerate" "trl" "peft" "wandb" "torch" "scipy"')
+    # Step 2: Install MIOpen Kernels if requested
+    if install_kernels:
+        torch_install_path = _get_pytorch_path(pip_executable)
+        gfx_archs = [a.strip() for a in arch.split(';')]
+        _install_miopen_kernels(torch_install_path, rocm_version, gfx_archs)
+    else:
+        print("\n--- Skipping MIOpen Kernel installation as requested. ---")
 
-    # --- Step 3: Install ROCm Flash Attention 2 ---
+    # Step 3: Install ROCm Flash Attention 2
     if build_from_source:
-        print(f"\n--- 3. Building and Installing ROCm Flash Attention 2 from source for {arch} ---")
+        print(f"\n--- 3. Building Flash Attention from source for {arch} ---")
         if os.path.exists("flash-attention"): shutil.rmtree("flash-attention")
         run_command("git clone https://github.com/ROCm/flash-attention.git")
-        # Use the targeted python executable to run the setup script
-        build_command = f"MAX_JOBS=$(nproc) GPU_ARCHS={arch} {python_executable} setup.py install"
+        build_command = f"MAX_JOBS=$(nproc) GPU_ARCHS='{arch}' {python_executable} setup.py install"
         run_command(build_command, cwd="flash-attention")
-        print("Cleaning up Flash Attention source directory...")
         shutil.rmtree("flash-attention", ignore_errors=True)
     else:
-        print(f"\n--- 3. Installing ROCm Flash Attention 2 from pre-built wheel ---")
+        print(f"\n--- 3. Installing Flash Attention from pre-built wheel ---")
         wheel_url = "https://github.com/TesslateAI/FlashAttentionDist/raw/main/flash_attn-2.8.3-cp312-cp312-linux_x86_64.whl"
         run_command(f"{pip_executable} install {wheel_url}")
-
-    # --- Step 4: Verification ---
-    print("\n--- 4. Verifying Installation in Target Environment ---")
-    verify_script = (
-        "import importlib; "
-        "importlib.invalidate_caches(); "
-        "import flash_attn; "
-        "print(f'Successfully imported flash_attn version: {flash_attn.__version__}')"
-    )
     
+    # Step 4: Verification
+    print("\n--- 4. Verifying Installation in Target Environment ---")
+    verify_script = "import importlib; importlib.invalidate_caches(); import flash_attn; print(f'Successfully imported flash_attn version: {flash_attn.__version__}')"
     try:
-        # Execute the verification script using the target python
-        print("Verifying packages...")
         run_command(f"{python_executable} -c '{verify_script}'")
         print("\n🎉 Patching complete. Your environment is ready.")
     except SystemExit:
-        print(f"\n❌ VERIFICATION FAILED. Could not import libraries in the target environment.", file=sys.stderr)
-        print("Please check the build logs above for errors.", file=sys.stderr)
+        print(f"\n❌ VERIFICATION FAILED. Could not import a required library.", file=sys.stderr)
         sys.exit(1)

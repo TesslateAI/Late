@@ -18,30 +18,33 @@ def cli():
     pass
 
 @cli.command()
-@click.option('--arch', default='gfx942', help='Target GPU architecture (e.g., gfx942).')
-@click.option('--venv', 
-              type=click.Path(exists=True, file_okay=False, dir_okay=True, readable=True),
+@click.option('--arch', default='gfx942', help='Target GPU architecture(s), semicolon-separated (e.g., "gfx942;gfx90a").')
+@click.option('--venv', type=click.Path(exists=True, file_okay=False, dir_okay=True, readable=True),
               help='Path to the virtual environment directory to patch.')
-@click.option('--source', is_flag=True, help='Build Flash Attention from source instead of using pre-built wheel.')
-def patch(arch, venv, source):
+@click.option('--rocm-version', default='latest', help="ROCm version for MIOpen kernels (e.g., '6.1.3').")
+@click.option('--no-kernels', is_flag=True, default=False, help='Skip installing MIOpen kernel databases.')
+@click.option('--from-source', is_flag=True, default=False, help='Build Flash Attention from source instead of using pre-built wheel.')
+def patch(arch, venv, rocm_version, no_kernels, from_source):
     """
-    Patches an environment with Flash Attention for ROCm.
+    Patches an environment with ROCm optimizations.
     
-    By default, it patches the current environment where 'late' is installed.
-    Use the --venv flag to target a specific virtual environment.
-    Use the --source flag to build Flash Attention from source instead of using pre-built wheel.
+    Installs Flash Attention and pre-compiled MIOpen kernel databases 
+    for optimal PyTorch performance.
     """
-    if venv:
-        click.echo(f"🚀 Patching virtual environment at '{os.path.abspath(venv)}' for ROCm arch: {arch}")
-    else:
-        click.echo(f"🚀 Patching current environment for ROCm arch: {arch}")
+    click.echo(f"🚀 Starting ROCm Patching Process...")
+    click.echo(f"  - Target Architecture(s): {arch}")
+    click.echo(f"  - Target Environment: {'Virtual env at ' + os.path.abspath(venv) if venv else 'Current environment'}")
+    click.echo(f"  - MIOpen Kernels: {'Skipping' if no_kernels else 'Installing for ROCm ' + rocm_version}")
+    click.echo(f"  - Flash Attention: {'Building from source' if from_source else 'Using pre-built wheel'}")
     
-    if source:
-        click.echo("📦 Building Flash Attention from source")
-    else:
-        click.echo("📦 Using pre-built Flash Attention wheel")
-    
-    patch_rocm_environment(arch=arch, venv_path=venv, build_from_source=source)
+    patch_rocm_environment(
+        arch=arch, 
+        venv_path=venv,
+        rocm_version=rocm_version,
+        install_kernels=not no_kernels,
+        build_from_source=from_source
+    )
+
 
 @cli.command()
 @click.argument('config_path', type=click.Path(exists=True))
