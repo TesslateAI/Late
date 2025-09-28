@@ -1,0 +1,111 @@
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background-color: #f0f2f5;
+    color: #1c1e21;
+    margin: 0;
+    padding: 20px;
+}
+.container {
+    max-width: 900px;
+    margin: 0 auto;
+}
+header {
+    text-align: center;
+    margin-bottom: 30px;
+}
+header h1 {
+    font-size: 2.5rem;
+    color: #333;
+}
+.card {
+    background: #fff;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    padding: 20px;
+    margin-bottom: 20px;
+}
+.form-inline {
+    display: flex;
+    gap: 10px;
+}
+input[type="text"] {
+    flex-grow: 1;
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    font-size: 1rem;
+}
+button {
+    padding: 10px 20px;
+    border: none;
+    border-radius: 6px;
+    background-color: #007bff;
+    color: white;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+button:hover {
+    background-color: #0056b3;
+}
+.queues-container {
+    margin-top: 30px;
+}
+.queue-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid #eee;
+    padding-bottom: 10px;
+    margin-bottom: 15px;
+}
+.queue-header h3 {
+    margin: 0;
+}
+.queue-actions {
+    display: flex;
+    gap: 10px;
+}
+.btn-danger {
+    background-color: #dc3545;
+}
+.btn-danger:hover {
+    background-color: #c82333;
+}
+.btn-disabled {
+    background-color: #6c757d;
+    cursor: not-allowed;
+}
+.jobs ul {
+    list-style: none;
+    padding: 0;
+}
+.jobs li {
+    background-color: #f8f9fa;
+    padding: 8px 12px;
+    border-radius: 4px;
+    margin-bottom: 5px;
+    font-family: "SF Mono", "Fira Code", "Fira Mono", "Roboto Mono", monospace;
+    font-size: 0.9rem;
+}
+.add-job-form {
+    margin-top: 20px;
+    padding-top: 15px;
+    border-top: 1px solid #eee;
+}
+.add-job-form form {
+    display: flex;
+    gap: 10px;
+}
+/* Flash messages */
+.flashes {
+    margin-bottom: 20px;
+}
+.flash {
+    padding: 15px;
+    border-radius: 6px;
+    color: #fff;
+}
+.flash.success { background-color: #28a745; }
+.flash.error { background-color: #dc3545; }
+.flash.info { background-color: #17a2b8; }
