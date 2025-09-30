@@ -1,0 +1,45 @@
+# Llama 3 8B Instruct - LoRA Fine-Tuning
+# Efficient fine-tuning using Parameter-Efficient Fine-Tuning (PEFT)
+
+# Model and Dataset
+base_model: "meta-llama/Meta-Llama-3-8B-Instruct"
+dataset_name: "databricks/databricks-dolly-15k"  # Diverse instruction dataset
+output_model_name: "your-username/llama3-8b-lora-custom"
+output_dir: "/workspace/outputs/llama3-lora/"
+
+# Training Configuration
+training_type: "lora"
+max_seq_length: 4096  # Can use shorter context for LoRA
+
+# Hyperparameters optimized for LoRA
+batch_size: 4  # Can use larger batch size with LoRA
+gradient_accumulation: 8  # Effective batch size: 32
+epochs: 3
+learning_rate: 3e-4  # Higher learning rate for LoRA
+lr_scheduler_type: "linear"
+optim: "adamw_torch_fused"
+save_steps: 50
+
+# Memory Optimization
+gradient_checkpointing: true
+torch_compile: true
+tf32: true
+cache_dir: "~/.cache/late/models"
+
+# LoRA Configuration
+lora:
+  r: 128  # Rank - higher for more capacity
+  lora_alpha: 256  # Scaling parameter
+  lora_dropout: 0.1
+  target_modules:  # Llama 3 attention modules
+    - "q_proj"
+    - "k_proj"
+    - "v_proj"
+    - "o_proj"
+    - "gate_proj"
+    - "up_proj"
+    - "down_proj"
+
+# Logging
+report_to_wandb: true
+upload_to_hub: true

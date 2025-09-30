@@ -1,0 +1,22 @@
+# Llama 3 Batch Size and Accumulation Sweep
+# Find optimal batch configuration for your hardware
+
+sweep_id: "llama3_batch_optimization"
+
+# Sweep batch configurations
+sweep_parameters:
+  batch_size: [1, 2, 4]
+  gradient_accumulation: [8, 16, 32, 64]
+  
+# Keep other parameters fixed
+overrides:
+  learning_rate: 2e-5
+  max_seq_length: 4096
+  epochs: 1
+  lora.r: 128  # Use LoRA for memory efficiency
+  lora.lora_alpha: 256
+  save_steps: 50
+  
+# Test for stability over more steps
+early_stop:
+  percent_epoch: 25

@@ -116,7 +116,7 @@ def _install_miopen_kernels(torch_path: Path, rocm_version: str, gfx_archs: list
         finally:
             shutil.rmtree(temp_dir)
 
-def patch_rocm_environment(arch="gfx942", venv_path: str = None, rocm_version="latest", install_kernels=True, build_from_source=False):
+def patch_rocm_environment(arch="gfx942", venv_path: str = None, rocm_version="latest", install_kernels=True, build_from_source=False, pytorch_install=None):
     """Automates patching for the ROCm environment by reading from a dependency file."""
     
     # Correctly determine the python and pip executables
@@ -153,6 +153,34 @@ def patch_rocm_environment(arch="gfx942", venv_path: str = None, rocm_version="l
     
     print("\n--- 1. Installing Dependencies into Target Environment ---")
     run_command(f"{pip_executable} install --upgrade pip")
+    
+    # Handle PyTorch installation based on pytorch_install parameter
+    if pytorch_install:
+        print("\n--- Installing PyTorch for ROCm ---")
+        pytorch_deps = deps['pytorch_rocm']
+        
+        if pytorch_install == "stable":
+            print(f"   -> Installing PyTorch STABLE for ROCm")
+            index_url = pytorch_deps['stable_index_url']
+            pytorch_packages = " ".join(pytorch_deps['packages'])
+            run_command(f"{pip_executable} install {pytorch_packages} --index-url {index_url}")
+        elif pytorch_install == "nightly":
+            print(f"   -> Installing PyTorch NIGHTLY for ROCm 6.4")
+            index_url = pytorch_deps['nightly_index_url']
+            pytorch_packages = " ".join(pytorch_deps['packages'])
+            run_command(f"{pip_executable} install --pre {pytorch_packages} --index-url {index_url}")
+        elif pytorch_install.startswith("http"):
+            # Direct wheel URL provided
+            print(f"   -> Installing PyTorch from provided wheel URL")
+            run_command(f"{pip_executable} install {pytorch_install}")
+        else:
+            print(f"[ERROR] Invalid --install-pytorch value: {pytorch_install}", file=sys.stderr)
+            print("Use 'stable', 'nightly', or a direct wheel URL.", file=sys.stderr)
+            sys.exit(1)
+    else:
+        print("\n--- Skipping PyTorch installation ---")
+        print("   -> Use --install-pytorch [stable|nightly|<wheel-url>] to install PyTorch")
+    
     if build_from_source:
         print("   -> Installing build-time dependencies...")
         run_command(f"{pip_executable} install {build_deps}")

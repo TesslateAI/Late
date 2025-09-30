@@ -9,11 +9,16 @@
       "pybind11"
     ]
   },
+  "pytorch_rocm": {
+    "comment": "PyTorch ROCm installation - MUST use ROCm-specific wheels to avoid CUDA version",
+    "nightly_index_url": "https://download.pytorch.org/whl/nightly/rocm6.4/",
+    "stable_index_url": "https://download.pytorch.org/whl/rocm6.2/",
+    "packages": ["torch", "torchvision", "torchaudio"]
+  },
   "machine_learning": {
-    "comment": "The core set of heavy ML libraries for a training environment.",
+    "comment": "Core ML libraries that depend on PyTorch - installed AFTER PyTorch",
     "packages": [
-      "torch",
-      "transformers>=4.40.0",
+      "transformers>=4.56.2",
       "datasets",
       "accelerate",
       "trl",

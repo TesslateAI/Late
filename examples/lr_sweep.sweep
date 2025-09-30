@@ -1,0 +1,18 @@
+# Learning Rate Sweep Configuration
+# This file demonstrates sweeping learning rates with reduced context length
+
+sweep_id: "lr_optimization_v1"
+
+# Parameters to sweep
+sweep_parameters:
+  learning_rate: [1e-5, 2e-5, 5e-5, 1e-4, 2e-4]
+  
+# Override these parameters for all sweep runs
+# Useful for faster sweeps with shorter context
+overrides:
+  max_seq_length: 2048  # Shorter context for faster runs
+  save_steps: 25        # Save more frequently
+  
+# Early stopping configuration
+early_stop:
+  percent_epoch: 25  # Stop at 25% of one epoch

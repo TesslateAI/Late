@@ -1,7 +1,48 @@
-# Late
-> A powerful toolkit for streamlining and scheduling machine learning training workflows on ROCm servers.
+<div align="center">
+  <img src="assets/late-logo.png" alt="Late Logo" width="200">
+  
+  # Late
+  
+  **A powerful toolkit for streamlining and scheduling ML training workflows on ROCm**
+  
+  [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+  [![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
+  [![ROCm](https://img.shields.io/badge/ROCm-6.0+-red.svg)](https://www.amd.com/en/products/software/rocm.html)
+  [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
+  
+  [Features](#-key-features) • [Installation](#-installation) • [Quick Start](#-quick-start) • [Documentation](#-documentation) • [Examples](#-examples)
+</div>
 
-`Late` is a Python library that provides a unified interface for managing the entire lifecycle of training large models on AMD GPUs. It combines a powerful **Command-Line Interface (CLI)**, a **batch job runner**, and a user-friendly **web dashboard** to simplify environment setup, job scheduling, and execution.
+---
+
+<div align="center">
+  <img src="assets/late-banner.png" alt="Late Training Dashboard" width="800">
+</div>
+
+## 📖 Overview
+
+`Late` is a comprehensive Python toolkit that provides a unified interface for managing the entire lifecycle of training large language models on AMD GPUs. It combines a powerful **Command-Line Interface (CLI)**, a **batch job runner**, and a user-friendly **web dashboard** to simplify environment setup, job scheduling, and execution.
+
+### Why Late?
+
+- 🚀 **ROCm Optimized**: Built specifically for AMD GPUs with optimized defaults
+- 🔧 **Zero Config**: Smart defaults that just work out of the box
+- 📊 **Hyperparameter Sweeps**: Built-in sweep engine with automatic reporting
+- 🔄 **Queue Management**: Batch processing with pause/resume capabilities
+- 📈 **Real-time Monitoring**: Web dashboard for tracking training progress
+- 🧪 **Reproducible**: Every run is tracked with configs and outputs saved
+
+### 🎯 Feature Comparison
+
+| Feature | Late | Other Tools |
+|---------|------|-------------|
+| ROCm Native Support | ✅ First-class | ⚠️ Limited |
+| Hyperparameter Sweeps | ✅ Built-in with reports | ❌ External tools needed |
+| Queue Management | ✅ Pause/Resume/Priority | ❌ Basic or none |
+| Memory Management | ✅ Automatic VRAM clearing | ❌ Manual |
+| Training Configs | ✅ Simple YAML | ⚠️ Complex scripts |
+| Web Dashboard | ✅ Included | ❌ Separate setup |
+| Reproducibility | ✅ Auto-saved runs | ⚠️ Manual tracking |
 
 ---
 
@@ -9,6 +50,7 @@
 
 -   **Automated Environment Patching**: A single command (`late patch`) installs and configures Flash Attention for ROCm, targeting either your global environment or a specific Python virtual environment. By default uses pre-built wheels, with optional source building.
 -   **Declarative Training Jobs**: Define all aspects of your training runs—from model choice to hyperparameters—in simple, readable YAML configuration files.
+-   **Direct Training**: Run training jobs immediately with `late train config.yml` - no queue required for single experiments.
 -   **Batch Queue Management**: Group multiple training configs into `.qml` queue files to run them sequentially. Perfect for running a series of experiments overnight.
 -   **Versatile CLI**: Manage every aspect of your workflow from the terminal, including patching, training, and queue management.
 -   **Web Dashboard**: Launch a web server (`late serve`) to visually create, manage, and monitor your training queues from any browser.
@@ -16,15 +58,126 @@
 
 ## 📦 Installation
 
-Clone the repository and install the package in editable mode using pip. This will make the `late` command available in your shell.
+### Prerequisites
+
+- **Python**: 3.8 or higher
+- **ROCm**: 6.0+ (for GPU training)
+- **Git**: For installation and version control
+- **OS**: Linux (Ubuntu/RHEL recommended)
+
+### Install from GitHub
 
 ```bash
-git clone https://github.com/your-username/late.git
-cd late
+# Clone the repository
+git clone https://github.com/TesslateAI/Late.git
+cd Late
+
+# Install in development mode
 pip install -e .
+
+# Verify installation
+late --version
 ```
 
-## 🚀 Core Concepts
+### Install Dependencies
+
+```bash
+# For training capabilities (optional)
+pip install -e ".[training]"
+```
+
+## 🚀 Quick Start
+
+### 1️⃣ Setup Environment (First Time Only)
+
+```bash
+# Create and activate a virtual environment
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+
+# Patch environment for ROCm (installs Flash Attention, etc.)
+late patch --arch gfx942  # Replace with your GPU architecture
+```
+
+### 2️⃣ Run Your First Training
+
+```bash
+# Create a simple LoRA training config
+cat > quick_lora.yml << EOF
+base_model: "meta-llama/Llama-3.2-3B-Instruct"
+dataset_name: "yahma/alpaca-cleaned"
+output_model_name: "my-first-lora"
+output_dir: "./outputs/quick-test/"
+training_type: "lora"
+max_seq_length: 2048
+batch_size: 4
+gradient_accumulation: 4
+epochs: 1
+learning_rate: 2e-4
+lora:
+  r: 32
+  lora_alpha: 64
+EOF
+
+# Start training immediately
+late train quick_lora.yml
+```
+
+### 3️⃣ Run a Hyperparameter Sweep
+
+```bash
+# Find the best learning rate in minutes
+late sweep quick_lora.yml \
+  --params learning_rate=1e-4,2e-4,3e-4 \
+  --percent-epoch 10  # Only train 10% of epoch for quick evaluation
+```
+
+### 4️⃣ Launch the Web Dashboard
+
+```bash
+# Start the web UI
+late serve
+
+# Open http://localhost:8080 in your browser
+```
+
+## 📚 Documentation
+
+<table>
+<tr>
+<td width="33%" valign="top">
+
+### 🏃 Getting Started
+- [Installation](#-installation)
+- [Quick Start](#-quick-start)
+- [Environment Setup](#environment-patching-late-patch)
+- [Your First Training](#running-a-single-training-job-late-train)
+
+</td>
+<td width="33%" valign="top">
+
+### 🔧 Core Features
+- [Training Configs](#training-configuration-yml)
+- [Hyperparameter Sweeps](#hyperparameter-sweeps-late-sweep)
+- [Queue Management](#managing-training-queues-late-queue-)
+- [Web Dashboard](#-web-dashboard)
+
+</td>
+<td width="33%" valign="top">
+
+### 📖 Advanced
+- [Configuration Reference](#-complete-configuration-reference)
+- [Training Run Management](#-training-run-management)
+- [API Token Setup](#setting-api-tokens-late-set)
+- [Examples](examples/)
+
+</td>
+</tr>
+</table>
+
+---
+
+## 🎯 Core Concepts
 
 Late is built around two simple file types: YAML for defining *what* to run, and QML for defining the *order* to run it in.
 
@@ -75,32 +228,117 @@ The `late` CLI is the primary way to interact with the library.
 
 ### Environment Patching (`late patch`)
 
-Prepares a Python environment for ROCm training. It automatically installs Flash Attention and other core ML libraries. By default, Flash Attention is installed from a pre-built wheel, but you can build from source using the `--source` flag.
+Prepares a Python environment for ROCm training. It automatically installs PyTorch ROCm, Flash Attention and other core ML libraries. 
+
+**IMPORTANT**: PyTorch installation is now OPTIONAL by default. You must explicitly use `--install-pytorch` to install PyTorch ROCm versions.
 
 **Usage:**
 ```bash
-# Patch the current environment for a gfx942 GPU (uses pre-built wheel)
+# Patch current environment WITHOUT PyTorch (default)
 late patch --arch gfx942
 
+# Install PyTorch stable ROCm version
+late patch --arch gfx942 --install-pytorch stable
+
+# Install PyTorch nightly ROCm 6.4 version
+late patch --arch gfx942 --install-pytorch nightly
+
+# Install PyTorch from specific wheel URL
+late patch --arch gfx942 --install-pytorch https://example.com/torch-2.0-rocm.whl
+
 # Build Flash Attention from source
-late patch --arch gfx942 --source
+late patch --arch gfx942 --from-source
 
 # Create a venv and patch it specifically (recommended)
 python3 -m venv my_env
 late patch --venv ./my_env
 
-# Patch venv and build from source
-late patch --venv ./my_env --source
+# Multiple GPU architectures
+late patch --arch "gfx942;gfx90a"
+
+# Skip MIOpen kernel installation
+late patch --no-kernels
+
+# Full example: venv + PyTorch nightly + Flash from source
+late patch --venv ./my_env --arch gfx942 --install-pytorch nightly --from-source
 ```
 
 ### Running a Single Training Job (`late train`)
 
-Immediately starts a training job from a single configuration file.
+Run a training job directly from a YAML config file without using queues. Perfect for quick experiments or single runs.
 
 **Usage:**
 ```bash
-late train /path/to/your/sft_config.yml
+# Run a single training job
+late train config.yml
+
+# Run with absolute path
+late train /workspace/configs/my_training.yml
+
+# The training will start immediately and show live output
 ```
+
+**Note**: Memory is automatically cleared before and after the run, and all outputs are saved in `training_runs/` just like queue runs.
+
+### Hyperparameter Sweeps (`late sweep`)
+
+Run systematic hyperparameter sweeps to find optimal training configurations. Supports sweeping ANY parameter with early stopping and automatic report generation.
+
+**Key Features:**
+- Sweep any parameter (learning rate, batch size, LoRA rank, etc.)
+- Override parameters for faster sweeps (e.g., shorter context length)
+- Early stopping by percentage of epoch or step count
+- Automatic Excel reports with loss graphs
+- W&B integration with custom sweep IDs
+- Add sweeps to queues for batch processing
+
+**Command Line Usage:**
+```bash
+# Basic learning rate sweep with 25% epoch early stopping
+late sweep config.yml --params learning_rate=1e-4,2e-4,3e-4 --percent-epoch 25
+
+# Multiple parameters with overrides for efficiency
+late sweep config.yml \
+  --params learning_rate=1e-4,2e-4 lora.r=64,128 \
+  --override max_seq_length=2048 \
+  --percent-epoch 25
+
+# Use custom sweep ID for W&B grouping
+late sweep config.yml \
+  --params learning_rate=1e-4,2e-4,3e-4 \
+  --sweep-id "lr_search_v1" \
+  --max-steps 100
+
+# Add sweep to queue instead of running immediately
+late sweep config.yml \
+  --sweep-file lr_sweep.sweep \
+  --add-to-queue overnight.qml
+```
+
+**Sweep File Format (.sweep):**
+```yaml
+# lr_sweep.sweep
+sweep_id: "lr_optimization_v1"
+
+sweep_parameters:
+  learning_rate: [1e-5, 2e-5, 5e-5, 1e-4]
+  lora.r: [64, 128]  # Can sweep nested parameters
+  
+overrides:
+  max_seq_length: 2048  # Use shorter context for faster sweeps
+  batch_size: 1         # Fix batch size for this sweep
+  
+early_stop:
+  percent_epoch: 25  # OR use max_steps: 100
+```
+
+**Sweep Reports:**
+After completion, an Excel report is generated with:
+- Summary table of all configurations and results
+- Best configuration highlighting
+- Combined loss curves graph
+- Individual graphs for top 5 configurations
+- Saved in `sweep_runs/{sweep_id}/sweep_report_{sweep_id}.xlsx`
 
 ### Managing Training Queues (`late queue ...`)
 
@@ -111,6 +349,10 @@ A suite of commands to manage `.qml` batch files. By default, these commands ope
 -   **`late queue add <queue>.qml <config>.yml`**: Add a training config path to a queue.
 -   **`late queue delete <name>.qml`**: Delete a queue.
 -   **`late queue start <name>.qml`**: **Start executing a queue**. The runner will process each job sequentially.
+    - Automatically saves progress and can resume if interrupted
+    - Use `--restart` to start from the beginning
+    - Memory is cleared between each job
+    - Sweep queues automatically generate reports upon completion
 
 ### Setting API Tokens (`late set`)
 
@@ -143,9 +385,10 @@ The web dashboard provides a user-friendly way to:
 ![Web Dashboard Screenshot](https://i.imgur.com/placeholder.png)  <!-- Placeholder for a future screenshot -->
 *Note: Starting a queue is a CLI-only feature to ensure process stability.*
 
-## 📝 Example Training Configurations
+## 📂 Example Training Configurations
 
-### Example 1: Full Supervised Fine-Tuning (SFT)
+<details>
+<summary><b>Example 1: Full Supervised Fine-Tuning (SFT)</b></summary>
 
 This configuration fine-tunes all the parameters of the base model.
 
@@ -158,13 +401,18 @@ output_dir: "/scratch/outputs/sft/"
 training_type: "sft"
 max_seq_length: 4096
 batch_size: 2
-gradient_accumulation: 8
+gradient_accumulation: 8  # Effective batch size: 16 (2 * 8)
+gradient_checkpointing: true  # Reduce VRAM usage (default: true)
 epochs: 1
 learning_rate: 2.0e-5
 report_to_wandb: true
+cache_dir: "~/.cache/late/models"  # Model cache directory
 ```
 
-### Example 2: LoRA Fine-Tuning
+</details>
+
+<details>
+<summary><b>Example 2: LoRA Fine-Tuning</b></summary>
 
 This configuration uses Parameter-Efficient Fine-Tuning (PEFT) with LoRA to train only a small number of adapter weights, which is much faster and more memory-efficient.
 
@@ -183,6 +431,9 @@ gradient_accumulation: 16
 epochs: 2
 learning_rate: 2.0e-4 # Higher learning rate is common for LoRA
 
+# Memory Optimization
+gradient_checkpointing: true  # Highly recommended for large models
+
 # LoRA Specific Config
 lora:
  r: 128
@@ -196,6 +447,114 @@ lora:
 # Control Flags
 report_to_wandb: true
 upload_to_hub: true
+```
+
+</details>
+
+### 🦙 Pre-configured Examples
+
+Check out the [`examples/`](examples/) directory for ready-to-use configurations:
+
+- **Llama 3 Examples** - Full configurations for Llama 3 8B and 3.2B models
+- **Sweep Templates** - Pre-built sweep configurations for common use cases
+- **Production Queues** - Example queue setups for real workflows
+
+## 📋 Complete Configuration Reference
+
+### Required Parameters
+- `base_model`: HuggingFace model ID or path
+- `dataset_name`: HuggingFace dataset ID (must have "messages" field)
+- `output_model_name`: Name for uploaded model (format: "username/model-name")
+- `output_dir`: Local directory to save model
+- `training_type`: Either "sft" (full fine-tuning) or "lora" (parameter-efficient)
+- `max_seq_length`: Maximum sequence length for training
+
+### Training Parameters
+- `batch_size`: Per-device batch size (default: 1)
+- `gradient_accumulation`: Gradient accumulation steps (default: 16)
+- `epochs`: Number of training epochs (default: 1)
+- `learning_rate`: Learning rate (default: 2e-5)
+- `lr_scheduler_type`: LR scheduler type (default: "linear")
+- `optim`: Optimizer (default: "adamw_torch_fused" - optimized for ROCm)
+- `save_steps`: Save checkpoint every N steps (default: 50)
+
+### Memory & Performance
+- `gradient_checkpointing`: Enable gradient checkpointing to reduce VRAM (default: true)
+- `torch_compile`: Enable torch.compile for faster training (default: true)
+- `tf32`: Enable TF32 mode for matrix operations (default: true)
+- `cache_dir`: Model cache directory (default: "~/.cache/late/models")
+
+### LoRA Configuration (when training_type: "lora")
+```yaml
+lora:
+  r: 128                    # LoRA rank
+  lora_alpha: 256          # LoRA alpha scaling parameter
+  target_modules:          # Modules to apply LoRA to
+    - "q_proj"
+    - "k_proj"
+    - "v_proj"
+    - "o_proj"
+```
+
+### Logging & Upload
+- `report_to_wandb`: Enable Weights & Biases logging (default: false)
+- `upload_to_hub`: Upload to HuggingFace Hub after training (default: false)
+
+### Complete Example Configuration
+```yaml
+# Model & Dataset
+base_model: "meta-llama/Llama-3.2-3B-Instruct"
+dataset_name: "your-dataset/chat-format"
+output_model_name: "your-username/model-finetuned"
+output_dir: "/workspace/outputs/my-model/"
+
+# Training Setup  
+training_type: "lora"  # or "sft" for full fine-tuning
+max_seq_length: 8192
+
+# Hyperparameters
+batch_size: 1
+gradient_accumulation: 16  # Effective batch size: 16
+epochs: 3
+learning_rate: 2e-4
+lr_scheduler_type: "cosine"
+optim: "adamw_torch_fused"
+save_steps: 100
+
+# Memory & Performance
+gradient_checkpointing: true
+torch_compile: true
+tf32: true
+cache_dir: "~/.cache/late/models"
+
+# LoRA Config (only if training_type: "lora")
+lora:
+  r: 128
+  lora_alpha: 256
+  target_modules: ["q_proj", "k_proj", "v_proj", "o_proj"]
+
+# Logging
+report_to_wandb: true
+upload_to_hub: true
+```
+
+## 🔧 Training Run Management
+
+Late automatically manages your training runs:
+
+- **Run Directory**: Each training run creates a timestamped directory in `training_runs/`
+- **Config Preservation**: The YAML config is saved as JSON for reproducibility
+- **Training Script**: The generated Python script is saved for debugging
+- **Logs**: Full training output is saved to `training.log`
+- **Memory Management**: VRAM is automatically cleared between queue runs
+
+Example run directory structure:
+```
+training_runs/
+└── UIGENT-7B-Lora_lora_20240315_143022/
+    ├── config.json          # Training configuration
+    ├── training_script.py   # Generated training script
+    └── training.log         # Full output log
 ```
 
 ## 💡 Example Workflow (End-to-End)
@@ -232,3 +591,56 @@ late queue add nightly_runs.qml configs/lora_llama.yml
 # 8. Start the queue and let it run!
 late queue start nightly_runs.qml
 ```
+
+---
+
+## 🤝 Contributing
+
+We welcome contributions! Please see our [Contributing Guidelines](CONTRIBUTING.md) for details.
+
+### Development Setup
+
+```bash
+# Clone the repo
+git clone https://github.com/TesslateAI/Late.git
+cd Late
+
+# Create development environment
+python -m venv dev-env
+source dev-env/bin/activate
+
+# Install in editable mode with dev dependencies
+pip install -e ".[dev]"
+
+# Run tests
+pytest tests/
+```
+
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## 🙏 Acknowledgments
+
+- Built with ❤️ for the ROCm community
+- Powered by [HuggingFace Transformers](https://huggingface.co/transformers/)
+- Flash Attention implementation from [ROCm/flash-attention](https://github.com/ROCm/flash-attention)
+
+## 📞 Support
+
+- 📧 Email: support@tesslate.ai
+- 🐛 Issues: [GitHub Issues](https://github.com/TesslateAI/Late/issues)
+- 💬 Discord: [Join our community](https://discord.gg/tesslate)
+
+---
+
+<div align="center">
+  <p>
+    <a href="https://tesslate.ai">
+      <img src="assets/tesslate-logo.png" alt="TesslateAI" width="150">
+    </a>
+  </p>
+  <p>
+    Made with 🔥 by <a href="https://tesslate.ai">TesslateAI</a>
+  </p>
+</div>

@@ -1,0 +1,20 @@
+# Llama 3 Learning Rate Sweep
+# Find optimal learning rate for Llama 3 fine-tuning
+
+sweep_id: "llama3_lr_search"
+
+# Sweep learning rates appropriate for 8B model
+sweep_parameters:
+  learning_rate: [5e-6, 1e-5, 2e-5, 5e-5, 1e-4]
+
+# Use shorter context and fewer steps for quick evaluation
+overrides:
+  max_seq_length: 2048
+  batch_size: 1
+  gradient_accumulation: 16  # Effective batch size: 16
+  save_steps: 25
+  torch_compile: false  # Disable for faster startup
+  
+# Early stopping for efficient search
+early_stop:
+  percent_epoch: 10  # Just 10% of epoch to identify trends

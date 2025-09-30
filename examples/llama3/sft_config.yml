@@ -1,0 +1,31 @@
+# Llama 3 8B Instruct - Full Supervised Fine-Tuning (SFT)
+# This configuration fine-tunes all parameters of Llama 3 8B
+
+# Model and Dataset
+base_model: "meta-llama/Meta-Llama-3-8B-Instruct"
+dataset_name: "HuggingFaceH4/no_robots"  # High-quality instruction dataset
+output_model_name: "your-username/llama3-8b-sft-custom"
+output_dir: "/workspace/outputs/llama3-sft/"
+
+# Training Configuration
+training_type: "sft"
+max_seq_length: 8192  # Llama 3 supports up to 8K context
+
+# Hyperparameters for 8B model
+batch_size: 1
+gradient_accumulation: 32  # Effective batch size: 32
+epochs: 1
+learning_rate: 2e-5
+lr_scheduler_type: "cosine"
+optim: "adamw_torch_fused"
+save_steps: 100
+
+# Memory Optimization (essential for 8B model)
+gradient_checkpointing: true
+torch_compile: true
+tf32: true
+cache_dir: "~/.cache/late/models"
+
+# Logging and Upload
+report_to_wandb: true
+upload_to_hub: false  # Set to true to upload to HuggingFace

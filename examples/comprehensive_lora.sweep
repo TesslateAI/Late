@@ -1,0 +1,23 @@
+# Comprehensive LoRA Hyperparameter Sweep
+# Sweeps multiple parameters to find optimal configuration
+
+sweep_id: "lora_optimization_full"
+
+# Parameters to sweep - creates all combinations
+sweep_parameters:
+  learning_rate: [5e-5, 1e-4, 2e-4]
+  lora.r: [64, 128, 256]
+  lora.lora_alpha: [128, 256, 512]
+  batch_size: [1, 2]
+  
+# Fixed overrides for sweep efficiency
+overrides:
+  max_seq_length: 4096
+  gradient_accumulation: 8
+  gradient_checkpointing: true
+  torch_compile: false  # Disable for faster startup
+  save_steps: 50
+  
+# Stop early to evaluate trends
+early_stop:
+  max_steps: 100  # Fixed step count for fair comparison

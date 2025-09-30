@@ -24,7 +24,10 @@ dependencies = [
     "flask",
     "waitress",
     "requests",
-    "Jinja2"
+    "Jinja2",
+    "matplotlib",
+    "openpyxl",
+    "pandas"
 ]
 
 [project.urls]

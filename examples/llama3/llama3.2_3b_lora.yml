@@ -1,0 +1,45 @@
+# Llama 3.2 3B Instruct - LoRA Fine-Tuning
+# Optimized for consumer GPUs (16-24GB VRAM)
+
+# Model and Dataset
+base_model: "meta-llama/Llama-3.2-3B-Instruct"
+dataset_name: "philschmid/guanaco-sharegpt-style"  # High-quality conversations
+output_model_name: "your-username/llama3.2-3b-lora-custom"
+output_dir: "/workspace/outputs/llama3.2-lora/"
+
+# Training Configuration
+training_type: "lora"
+max_seq_length: 2048  # Reasonable for 3B model
+
+# Hyperparameters for smaller model
+batch_size: 4  # Works on 16GB GPUs
+gradient_accumulation: 4  # Effective batch size: 16
+epochs: 3
+learning_rate: 2e-4
+lr_scheduler_type: "cosine"
+optim: "adamw_torch_fused"
+save_steps: 100
+
+# Memory Optimization
+gradient_checkpointing: true
+torch_compile: true
+tf32: true
+cache_dir: "~/.cache/late/models"
+
+# LoRA Configuration for 3B model
+lora:
+  r: 64  # Good balance for 3B model
+  lora_alpha: 128
+  lora_dropout: 0.05
+  target_modules:
+    - "q_proj"
+    - "k_proj" 
+    - "v_proj"
+    - "o_proj"
+    - "gate_proj"
+    - "up_proj"
+    - "down_proj"
+
+# Logging
+report_to_wandb: true
+upload_to_hub: true
