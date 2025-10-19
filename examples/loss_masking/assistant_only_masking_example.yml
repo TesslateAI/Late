@@ -1,0 +1,48 @@
+# Assistant-Only Loss Masking Strategy Example
+# Masks user prompts from loss computation - only learns from assistant responses
+
+# Model and Dataset
+base_model: "meta-llama/Llama-3.2-3B-Instruct"
+dataset_name: "yahma/alpaca-cleaned"
+output_model_name: "your-username/llama3-assistant-masking"
+output_dir: "./outputs/assistant-masking/"
+
+# Training Configuration
+training_type: "sft"  # or "lora"
+max_seq_length: 2048
+
+# ⭐ Loss Masking Strategy: Assistant-Only
+# Only computes loss on assistant responses, user prompts are masked with -100
+loss_masking_strategy: "assistant_only"  # EXPLICIT SETTING REQUIRED
+
+# Hyperparameters
+batch_size: 4
+gradient_accumulation: 4  # Effective batch size: 16
+epochs: 1
+learning_rate: 2e-5
+lr_scheduler_type: "cosine"
+optim: "adamw_torch_fused"
+save_steps: 100
+
+# Memory Optimization
+gradient_checkpointing: true
+torch_compile: true
+tf32: true
+cache_dir: "~/.cache/late/models"
+
+# Logging and Upload
+report_to_wandb: false
+upload_to_hub: false
+
+# Optional: Notifications (leave empty to disable)
+ntfy_topic: ""
+
+# Optional: HuggingFace Token (uses HF_TOKEN env var if not set)
+hf_token: ""
+
+# When to use Assistant-Only Loss Masking:
+# ✅ More targeted training (only learn assistant behavior)
+# ✅ Prevent model from learning user patterns
+# ✅ Traditional fine-tuning approach
+# ✅ May be better for instruction-following tasks
+# ⚠️  Slower preprocessing than full masking

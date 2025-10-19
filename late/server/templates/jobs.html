@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Training Jobs - Late Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        @keyframes pulse-slow {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        .pulse-slow {
+            animation: pulse-slow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        .log-container {
+            max-height: 400px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 0.85rem;
+        }
+        .log-container::-webkit-scrollbar {
+            width: 8px;
+        }
+        .log-container::-webkit-scrollbar-track {
+            background: #1f2937;
+        }
+        .log-container::-webkit-scrollbar-thumb {
+            background: #4b5563;
+            border-radius: 4px;
+        }
+        .log-container::-webkit-scrollbar-thumb:hover {
+            background: #6b7280;
+        }
+        .log-container::-webkit-scrollbar-track {
+            background: #1a1a2e;
+        }
+        .log-container::-webkit-scrollbar-thumb {
+            background: #4A5080;
+            border-radius: 4px;
+        }
+        .log-container::-webkit-scrollbar-thumb:hover {
+            background: #D8DBF0;
+        }
+    </style>
+</head>
+<body class="bg-black min-h-screen text-white">
+    <!-- Navigation -->
+    <nav class="bg-[#1a1a2e]/90 backdrop-blur-lg border-b border-[#2D3561] sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16">
+                <div class="flex items-center space-x-8">
+                    <div class="flex items-center space-x-3">
+                        <img src="{{ url_for('static', filename='late-logo.png') }}" alt="Late Logo" class="w-10 h-10 rounded-full">
+                        <span class="text-2xl font-bold bg-gradient-to-r from-[#D8DBF0] to-white bg-clip-text text-transparent">Late Training</span>
+                    </div>
+                    <div class="hidden md:flex space-x-4">
+                        <a href="{{ url_for('index') }}" class="px-3 py-2 rounded-md text-sm font-medium text-[#D8DBF0] hover:bg-[#2D3561] hover:text-white transition">
+                            <i class="fas fa-list mr-2"></i>Queues
+                        </a>
+                        <a href="{{ url_for('jobs') }}" class="px-3 py-2 rounded-md text-sm font-medium bg-[#2D3561] text-white">
+                            <i class="fas fa-tasks mr-2"></i>Jobs
+                        </a>
+                        <a href="{{ url_for('configs') }}" class="px-3 py-2 rounded-md text-sm font-medium text-[#D8DBF0] hover:bg-[#2D3561] hover:text-white transition">
+                            <i class="fas fa-file-code mr-2"></i>Configs
+                        </a>
+                    </div>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <button onclick="location.reload()" class="px-4 py-2 bg-[#2D3561] hover:bg-[#4A5080] rounded-lg text-sm flex items-center space-x-2 transition">
+                        <i class="fas fa-sync-alt"></i>
+                        <span>Refresh</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <!-- Page Header -->
+        <div class="mb-8">
+            <h1 class="text-4xl font-bold mb-2">Training Jobs</h1>
+            <p class="text-gray-400">Monitor and manage your training jobs with live logs and loss tracking</p>
+        </div>
+
+        <!-- Jobs List -->
+        {% if not jobs %}
+            <div class="bg-gray-800/30 backdrop-blur-lg rounded-xl border border-gray-700 p-12 text-center">
+                <i class="fas fa-clipboard-list text-6xl text-gray-600 mb-4"></i>
+                <h3 class="text-xl font-semibold text-gray-400 mb-2">No jobs running</h3>
+                <p class="text-gray-500">Start a training job from a queue or config to see it here.</p>
+                <a href="{{ url_for('index') }}" class="mt-4 inline-block px-6 py-3 bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 rounded-lg font-medium transition">
+                    <i class="fas fa-arrow-left mr-2"></i>Back to Queues
+                </a>
+            </div>
+        {% else %}
+            <div class="space-y-6">
+                {% for job_id, job in jobs.items() %}
+                <div class="bg-gray-800/50 backdrop-blur-lg rounded-xl border border-gray-700 overflow-hidden" id="job-{{ job_id }}">
+                    <!-- Job Header -->
+                    <div class="px-6 py-4 bg-gradient-to-r from-gray-800 to-gray-800/50 border-b border-gray-700">
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center space-x-4">
+                                <div class="w-12 h-12
+                                    {% if job.status == 'running' %}bg-gradient-to-br from-green-500 to-emerald-600{% elif job.status == 'completed' %}bg-gradient-to-br from-blue-500 to-cyan-600{% elif job.status == 'failed' or job.status == 'error' %}bg-gradient-to-br from-red-500 to-pink-600{% else %}bg-gradient-to-br from-yellow-500 to-orange-600{% endif %}
+                                    rounded-lg flex items-center justify-center">
+                                    <i class="fas
+                                        {% if job.status == 'running' %}fa-spinner fa-spin{% elif job.status == 'completed' %}fa-check{% elif job.status == 'failed' or job.status == 'error' %}fa-times{% else %}fa-clock{% endif %}
+                                        text-xl"></i>
+                                </div>
+                                <div>
+                                    <h3 class="text-lg font-bold">{{ job_id }}</h3>
+                                    <p class="text-sm text-gray-400">
+                                        <code class="bg-gray-900/50 px-2 py-1 rounded">{{ job.config_path }}</code>
+                                    </p>
+                                </div>
+                            </div>
+                            <div class="flex items-center space-x-3">
+                                <span class="px-4 py-2 rounded-lg font-medium text-sm
+                                    {% if job.status == 'running' %}bg-green-500/20 border border-green-500/50 text-green-400 pulse-slow{% elif job.status == 'completed' %}bg-blue-500/20 border border-blue-500/50 text-blue-400{% elif job.status == 'failed' or job.status == 'error' %}bg-red-500/20 border border-red-500/50 text-red-400{% else %}bg-yellow-500/20 border border-yellow-500/50 text-yellow-400{% endif %}">
+                                    {% if job.status == 'running' %}
+                                        <i class="fas fa-circle-notch fa-spin mr-2"></i>Running
+                                    {% elif job.status == 'completed' %}
+                                        <i class="fas fa-check-circle mr-2"></i>Completed
+                                    {% elif job.status == 'failed' %}
+                                        <i class="fas fa-exclamation-circle mr-2"></i>Failed
+                                    {% elif job.status == 'error' %}
+                                        <i class="fas fa-times-circle mr-2"></i>Error
+                                    {% else %}
+                                        <i class="fas fa-hourglass-half mr-2"></i>{{ job.status|title }}
+                                    {% endif %}
+                                </span>
+                                {% if job.status == 'running' %}
+                                <button onclick="stopJob('{{ job_id }}')"
+                                        class="px-4 py-2 bg-red-500/20 hover:bg-red-500/30 border border-red-500/50 text-red-400 rounded-lg font-medium transition text-sm flex items-center space-x-2">
+                                    <i class="fas fa-stop"></i>
+                                    <span>Stop</span>
+                                </button>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Job Content -->
+                    <div class="p-6">
+                        <!-- Stats Grid -->
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                            <div class="bg-gray-900/50 rounded-lg p-4 border border-gray-700">
+                                <div class="flex items-center justify-between">
+                                    <div>
+                                        <p class="text-gray-400 text-sm">Started</p>
+                                        <p class="text-lg font-bold">
+                                            <span id="job-time-{{ job_id }}">{{ (job.started_at|float)|int }}</span>s ago
+                                        </p>
+                                    </div>
+                                    <i class="fas fa-clock text-2xl text-gray-600"></i>
+                                </div>
+                            </div>
+
+                            <div class="bg-gray-900/50 rounded-lg p-4 border border-gray-700">
+                                <div class="flex items-center justify-between">
+                                    <div>
+                                        <p class="text-gray-400 text-sm">Log Lines</p>
+                                        <p class="text-lg font-bold">{{ job.log|length }}</p>
+                                    </div>
+                                    <i class="fas fa-file-alt text-2xl text-gray-600"></i>
+                                </div>
+                            </div>
+
+                            <div class="bg-gray-900/50 rounded-lg p-4 border border-gray-700">
+                                <div class="flex items-center justify-between">
+                                    <div>
+                                        <p class="text-gray-400 text-sm">Current Loss</p>
+                                        <p class="text-lg font-bold text-blue-400" id="current-loss-{{ job_id }}">
+                                            Detecting...
+                                        </p>
+                                    </div>
+                                    <i class="fas fa-chart-line text-2xl text-gray-600"></i>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Error Display (if error exists) -->
+                        {% if job.status == 'error' and job.error %}
+                        <div class="bg-red-500/10 border-l-4 border-red-500 p-4 rounded-r-lg mb-6">
+                            <div class="flex items-center space-x-3 mb-2">
+                                <i class="fas fa-exclamation-triangle text-red-400"></i>
+                                <h4 class="font-bold text-red-400">Error Occurred</h4>
+                            </div>
+                            <pre class="text-sm text-red-300 font-mono overflow-x-auto">{{ job.error }}</pre>
+                        </div>
+                        {% endif %}
+
+                        <!-- Tabs -->
+                        <div class="mb-4">
+                            <div class="border-b border-gray-700">
+                                <nav class="-mb-px flex space-x-4">
+                                    <button onclick="switchTab('{{ job_id }}', 'logs')"
+                                            class="tab-{{ job_id }} tab-{{ job_id }}-logs border-b-2 border-blue-500 py-2 px-4 text-sm font-medium text-blue-400 transition">
+                                        <i class="fas fa-terminal mr-2"></i>Logs
+                                    </button>
+                                    <button onclick="switchTab('{{ job_id }}', 'loss')"
+                                            class="tab-{{ job_id }} tab-{{ job_id }}-loss border-b-2 border-transparent py-2 px-4 text-sm font-medium text-gray-400 hover:text-gray-300 hover:border-gray-300 transition">
+                                        <i class="fas fa-chart-area mr-2"></i>Loss Chart
+                                    </button>
+                                    <button onclick="switchTab('{{ job_id }}', 'config')"
+                                            class="tab-{{ job_id }} tab-{{ job_id }}-config border-b-2 border-transparent py-2 px-4 text-sm font-medium text-gray-400 hover:text-gray-300 hover:border-gray-300 transition">
+                                        <i class="fas fa-cog mr-2"></i>Config
+                                    </button>
+                                </nav>
+                            </div>
+                        </div>
+
+                        <!-- Tab Content: Logs -->
+                        <div id="content-{{ job_id }}-logs" class="tab-content-{{ job_id }}">
+                            <div class="bg-gray-900 rounded-lg border border-gray-700 p-4 log-container">
+                                <div id="log-output-{{ job_id }}">
+                                    {% if job.log %}
+                                        {% for line in job.log %}
+                                        <div class="{% if 'ERROR' in line or 'Error' in line %}text-red-400{% elif 'WARNING' in line or 'Warning' in line %}text-yellow-400{% elif 'loss' in line.lower() %}text-blue-400{% else %}text-gray-300{% endif %} mb-1">{{ line }}</div>
+                                        {% endfor %}
+                                    {% else %}
+                                        <div class="text-gray-500 text-center py-8">No logs yet...</div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="mt-3 flex items-center justify-between">
+                                <label class="flex items-center space-x-2 text-sm text-gray-400">
+                                    <input type="checkbox" id="autoscroll-{{ job_id }}" checked
+                                           class="rounded bg-gray-700 border-gray-600 text-blue-500 focus:ring-blue-500">
+                                    <span>Auto-scroll to bottom</span>
+                                </label>
+                                <button onclick="downloadLogs('{{ job_id }}')"
+                                        class="px-3 py-1 bg-gray-700 hover:bg-gray-600 rounded text-sm flex items-center space-x-2 transition">
+                                    <i class="fas fa-download"></i>
+                                    <span>Download Logs</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Tab Content: Loss Chart -->
+                        <div id="content-{{ job_id }}-loss" class="tab-content-{{ job_id }} hidden">
+                            <div class="bg-gray-900 rounded-lg border border-gray-700 p-4">
+                                <canvas id="loss-chart-{{ job_id }}" width="400" height="200"></canvas>
+                            </div>
+                        </div>
+
+                        <!-- Tab Content: Config -->
+                        <div id="content-{{ job_id }}-config" class="tab-content-{{ job_id }} hidden">
+                            <div class="bg-gray-900 rounded-lg border border-gray-700 p-4">
+                                <p class="text-sm text-gray-400 mb-2">Configuration File:</p>
+                                <code class="text-sm text-blue-400">{{ job.config_path }}</code>
+                                <div class="mt-3">
+                                    <a href="file://{{ job.config_path }}"
+                                       class="px-4 py-2 bg-blue-500/20 hover:bg-blue-500/30 border border-blue-500/50 text-blue-400 rounded-lg text-sm inline-flex items-center space-x-2 transition">
+                                        <i class="fas fa-external-link-alt"></i>
+                                        <span>Open Config File</span>
+                                    </a>
+                                </div>
+                                <p class="text-sm text-gray-400 mt-4 mb-2">Training Script:</p>
+                                <code class="text-sm text-purple-400">{{ job.script_path }}</code>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Initialize loss chart -->
+                <script>
+                    const lossData{{ job_id|replace('-', '_')|replace('.', '_') }} = {
+                        labels: [],
+                        datasets: [{
+                            label: 'Training Loss',
+                            data: [],
+                            borderColor: 'rgb(59, 130, 246)',
+                            backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                            tension: 0.4
+                        }]
+                    };
+
+                    const lossChart{{ job_id|replace('-', '_')|replace('.', '_') }} = new Chart(
+                        document.getElementById('loss-chart-{{ job_id }}'),
+                        {
+                            type: 'line',
+                            data: lossData{{ job_id|replace('-', '_')|replace('.', '_') }},
+                            options: {
+                                responsive: true,
+                                maintainAspectRatio: false,
+                                plugins: {
+                                    legend: { labels: { color: 'rgb(156, 163, 175)' } }
+                                },
+                                scales: {
+                                    y: {
+                                        beginAtZero: false,
+                                        ticks: { color: 'rgb(156, 163, 175)' },
+                                        grid: { color: 'rgba(156, 163, 175, 0.1)' }
+                                    },
+                                    x: {
+                                        ticks: { color: 'rgb(156, 163, 175)' },
+                                        grid: { color: 'rgba(156, 163, 175, 0.1)' }
+                                    }
+                                }
+                            }
+                        }
+                    );
+                </script>
+                {% endfor %}
+            </div>
+        {% endif %}
+    </div>
+
+    <!-- JavaScript for live updates -->
+    <script>
+        function switchTab(jobId, tabName) {
+            // Hide all tab contents
+            document.querySelectorAll('.tab-content-' + jobId).forEach(el => {
+                el.classList.add('hidden');
+            });
+
+            // Remove active state from all tabs
+            document.querySelectorAll('.tab-' + jobId).forEach(el => {
+                el.classList.remove('border-blue-500', 'text-blue-400');
+                el.classList.add('border-transparent', 'text-gray-400');
+            });
+
+            // Show selected tab content
+            document.getElementById('content-' + jobId + '-' + tabName).classList.remove('hidden');
+
+            // Add active state to selected tab
+            const activeTab = document.querySelector('.tab-' + jobId + '-' + tabName);
+            activeTab.classList.add('border-blue-500', 'text-blue-400');
+            activeTab.classList.remove('border-transparent', 'text-gray-400');
+        }
+
+        function stopJob(jobId) {
+            if (confirm('Are you sure you want to stop this job?')) {
+                fetch(`/api/job/${jobId}/stop`, { method: 'POST' })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            location.reload();
+                        } else {
+                            alert('Error: ' + data.error);
+                        }
+                    });
+            }
+        }
+
+        function downloadLogs(jobId) {
+            const logContent = document.getElementById('log-output-' + jobId).innerText;
+            const blob = new Blob([logContent], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${jobId}_logs.txt`;
+            a.click();
+        }
+
+        // Auto-update logs every 2 seconds
+        setInterval(() => {
+            {% for job_id, job in jobs.items() %}
+            {% if job.status == 'running' %}
+            fetch('/api/job/{{ job_id }}')
+                .then(response => response.json())
+                .then(data => {
+                    // Update logs
+                    const logContainer = document.getElementById('log-output-{{ job_id }}');
+                    logContainer.innerHTML = '';
+                    data.log.forEach(line => {
+                        const div = document.createElement('div');
+                        if (line.includes('ERROR') || line.includes('Error')) {
+                            div.className = 'text-red-400 mb-1';
+                        } else if (line.includes('WARNING') || line.includes('Warning')) {
+                            div.className = 'text-yellow-400 mb-1';
+                        } else if (line.toLowerCase().includes('loss')) {
+                            div.className = 'text-blue-400 mb-1';
+                        } else {
+                            div.className = 'text-gray-300 mb-1';
+                        }
+                        div.textContent = line;
+                        logContainer.appendChild(div);
+
+                        // Extract loss values for chart
+                        const lossMatch = line.match(/'loss':\s*([\d.]+)/);
+                        if (lossMatch) {
+                            const loss = parseFloat(lossMatch[1]);
+                            const chartId = '{{ job_id }}'.replace(/-/g, '_').replace(/\./g, '_');
+                            const chart = window['lossChart' + chartId];
+                            if (chart) {
+                                chart.data.labels.push(chart.data.labels.length + 1);
+                                chart.data.datasets[0].data.push(loss);
+                                if (chart.data.labels.length > 100) {
+                                    chart.data.labels.shift();
+                                    chart.data.datasets[0].data.shift();
+                                }
+                                chart.update();
+
+                                // Update current loss display
+                                document.getElementById('current-loss-{{ job_id }}').textContent = loss.toFixed(4);
+                            }
+                        }
+                    });
+
+                    // Auto-scroll if enabled
+                    if (document.getElementById('autoscroll-{{ job_id }}').checked) {
+                        logContainer.parentElement.scrollTop = logContainer.parentElement.scrollHeight;
+                    }
+
+                    // Update time
+                    const startTime = data.started_at;
+                    const elapsed = Math.floor(Date.now() / 1000 - startTime);
+                    document.getElementById('job-time-{{ job_id }}').textContent = elapsed;
+                });
+            {% endif %}
+            {% endfor %}
+        }, 2000);
+    </script>
+</body>
+</html>

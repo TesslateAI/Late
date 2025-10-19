@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Create Config - Late Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body class="bg-black min-h-screen text-white">
+    <!-- Navigation -->
+    <nav class="bg-[#1a1a2e]/90 backdrop-blur-lg border-b border-[#2D3561] sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16">
+                <div class="flex items-center space-x-8">
+                    <div class="flex items-center space-x-3">
+                        <img src="{{ url_for('static', filename='late-logo.png') }}" alt="Late Logo" class="w-10 h-10 rounded-full">
+                        <span class="text-2xl font-bold bg-gradient-to-r from-[#D8DBF0] to-white bg-clip-text text-transparent">Late Training</span>
+                    </div>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <a href="{{ url_for('configs') }}" class="px-4 py-2 bg-[#2D3561] hover:bg-[#4A5080] rounded-lg text-sm flex items-center space-x-2 transition">
+                        <i class="fas fa-arrow-left"></i>
+                        <span>Back to Configs</span>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <!-- Page Header -->
+        <div class="mb-8">
+            <h1 class="text-4xl font-bold mb-2">Create Training Configuration</h1>
+            <p class="text-gray-400">Configure your training parameters and save as a YAML file</p>
+        </div>
+
+        <form action="{{ url_for('create_config') }}" method="post">
+            <!-- Config Name -->
+            <div class="bg-gray-800/50 backdrop-blur-lg rounded-xl border border-gray-700 p-6 mb-6">
+                <h2 class="text-xl font-bold mb-4 flex items-center">
+                    <i class="fas fa-file text-blue-400 mr-3"></i>
+                    Configuration Name
+                </h2>
+                <div>
+                    <label class="block text-sm font-medium text-gray-300 mb-2">Config Filename</label>
+                    <input type="text"
+                           name="config_name"
+                           placeholder="my-training-config.yml"
+                           required
+                           class="w-full px-4 py-3 bg-gray-900/50 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-white placeholder-gray-500">
+                    <p class="mt-2 text-sm text-gray-400">Will be saved to ./configs/</p>
+                </div>
+            </div>
+
+            <!-- Model & Dataset -->
+            <div class="bg-gray-800/50 backdrop-blur-lg rounded-xl border border-gray-700 p-6 mb-6">
+                <h2 class="text-xl font-bold mb-4 flex items-center">
+                    <i class="fas fa-database text-purple-400 mr-3"></i>
+                    Model & Dataset
+                </h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-300 mb-2">Base Model *</label>
+                        <input type="text"
+                               name="base_model"
+                               placeholder="meta-llama/Llama-3.2-3B-Instruct"
+                               required
+                               class="w-full px-4 py-3 bg-gray-900/50 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-white placeholder-gray-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-300 mb-2">Dataset Name *</label>
+                        <input type="text"
+                               name="dataset_name"
+                               placeholder="yahma/alpaca-cleaned"
+                               required
+                               class="w-full px-4 py-3 bg-gray-900/50 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-white placeholder-gray-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-300 mb-2">Output Model Name *</label>
+                        <input type="text"
+                               name="output_model_name"
+                               placeholder="your-username/model-name"
+                               required
+                               class="w-full px-4 py-3 bg-gray-900/50 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-white placeholder-gray-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-300 mb-2">Output Directory</label>
+                        <input type="text"
+                               name="output_dir"
+                               placeholder="./outputs/"
+                               value="./outputs/"
+                               class="w-full px-4 py-3 bg-gray-900/50 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-white placeholder-gray-500">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Training Configuration -->
+            <div class="bg-gray-800/50 backdrop-blur-lg rounded-xl border border-gray-700 p-6 mb-6">
+                <h2 class="text-xl font-bold mb-4 flex items-center">
+                    <i class="fas fa-cog text-green-400 mr-3"></i>
+                    Training Configuration
+                </h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-300 mb-2">Training Type</label>
+                        <select name="training_type"
+                                id="training_type"
+                                onchange="toggleLoraSettings()"
+                                class="w-full px-4 py-3 bg-gray-900/50 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 text-white">
+                            <option value="lora">LoRA (Recommended)</option>
+                            <option value="sft">Full Fine-Tuning (SFT)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-300 mb-2">Max Sequence Length</label>
+                        <input type="number"
+                               name="max_seq_length"
+                               value="2048"
+                               class="w-full px-4 py-3 bg-gray-900/50 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 text-white">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-300 mb-2">Loss Masking Strategy</label>
+                        <select name="loss_masking_strategy"
+                                class="w-full px-4 py-3 bg-gray-900/50 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 text-white">
+                            <option value="full">Full (Default - Compute loss on entire conversation)</option>
+                            <option value="assistant_only">Assistant Only (Mask user prompts)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-300 mb-2">Cache Directory</label>
+                        <input type="text"
+                               name="cache_dir"
+                               value="~/.cache/late/models"
+                               class="w-full px-4 py-3 bg-gray-900/50 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 text-white">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Hyperparameters -->
+            <div class="bg-gray-800/50 backdrop-blur-lg rounded-xl border border-gray-700 p-6 mb-6">
+                <h2 class="text-xl font-bold mb-4 flex items-center">
+                    <i class="fas fa-sliders-h text-yellow-400 mr-3"></i>
+                    Hyperparameters
+                </h2>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-300 mb-2">Batch Size</label>
+                        <input type="number"
+                               name="batch_size"
+                               value="4"
+                               min="1"
+                               class="w-full px-4 py-3 bg-gray-900/50 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500 text-white">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-300 mb-2">Gradient Accumulation</label>
+                        <input type="number"
+                               name="gradient_accumulation"
+                               value="4"
+                               min="1"
+                               class="w-full px-4 py-3 bg-gray-900/50 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500 text-white">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-300 mb-2">Epochs</label>
+                        <input type="number"
+                               name="epochs"
+                               value="3"
+                               min="1"
+                               class="w-full px-4 py-3 bg-gray-900/50 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500 text-white">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-300 mb-2">Learning Rate</label>
+                        <input type="number"
+                               name="learning_rate"
+                               value="0.0002"
+                               step="0.00001"
+                               class="w-full px-4 py-3 bg-gray-900/50 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500 text-white">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-300 mb-2">LR Scheduler</label>
+                        <select name="lr_scheduler_type"
+                                class="w-full px-4 py-3 bg-gray-900/50 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500 text-white">
+                            <option value="cosine">Cosine</option>
+                            <option value="linear">Linear</option>
+                            <option value="constant">Constant</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-300 mb-2">Optimizer</label>
+                        <select name="optim"
+                                class="w-full px-4 py-3 bg-gray-900/50 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500 text-white">
+                            <option value="adamw_torch_fused">AdamW Fused</option>
+                            <option value="adamw_torch">AdamW</option>
+                            <option value="sgd">SGD</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-300 mb-2">Save Steps</label>
+                        <input type="number"
+                               name="save_steps"
+                               value="100"
+                               min="1"
+                               class="w-full px-4 py-3 bg-gray-900/50 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500 text-white">
+                    </div>
+                </div>
+            </div>
+
+            <!-- LoRA Settings -->
+            <div id="lora_settings" class="bg-gray-800/50 backdrop-blur-lg rounded-xl border border-gray-700 p-6 mb-6">
+                <h2 class="text-xl font-bold mb-4 flex items-center">
+                    <i class="fas fa-layer-group text-pink-400 mr-3"></i>
+                    LoRA Configuration
+                </h2>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-300 mb-2">LoRA Rank (r)</label>
+                        <input type="number"
+                               name="lora_r"
+                               value="64"
+                               min="1"
+                               class="w-full px-4 py-3 bg-gray-900/50 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-500 text-white">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-300 mb-2">LoRA Alpha</label>
+                        <input type="number"
+                               name="lora_alpha"
+                               value="128"
+                               min="1"
+                               class="w-full px-4 py-3 bg-gray-900/50 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-500 text-white">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-300 mb-2">LoRA Dropout</label>
+                        <input type="number"
+                               name="lora_dropout"
+                               value="0.05"
+                               step="0.01"
+                               min="0"
+                               max="1"
+                               class="w-full px-4 py-3 bg-gray-900/50 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-500 text-white">
+                    </div>
+                </div>
+                <p class="text-sm text-gray-400 mt-4">
+                    <i class="fas fa-info-circle mr-2"></i>
+                    Target modules are automatically set to: q_proj, k_proj, v_proj, o_proj, gate_proj, up_proj, down_proj
+                </p>
+            </div>
+
+            <!-- Memory Optimization -->
+            <div class="bg-gray-800/50 backdrop-blur-lg rounded-xl border border-gray-700 p-6 mb-6">
+                <h2 class="text-xl font-bold mb-4 flex items-center">
+                    <i class="fas fa-memory text-cyan-400 mr-3"></i>
+                    Memory Optimization
+                </h2>
+                <div class="space-y-3">
+                    <label class="flex items-center space-x-3 cursor-pointer group">
+                        <input type="checkbox"
+                               name="gradient_checkpointing"
+                               checked
+                               class="w-5 h-5 rounded bg-gray-700 border-gray-600 text-cyan-500 focus:ring-cyan-500">
+                        <div>
+                            <span class="text-white font-medium">Gradient Checkpointing</span>
+                            <p class="text-sm text-gray-400">Trade compute for memory - recommended for large models</p>
+                        </div>
+                    </label>
+                    <label class="flex items-center space-x-3 cursor-pointer group">
+                        <input type="checkbox"
+                               name="torch_compile"
+                               checked
+                               class="w-5 h-5 rounded bg-gray-700 border-gray-600 text-cyan-500 focus:ring-cyan-500">
+                        <div>
+                            <span class="text-white font-medium">Torch Compile</span>
+                            <p class="text-sm text-gray-400">Use PyTorch 2.0 compilation for faster training</p>
+                        </div>
+                    </label>
+                    <label class="flex items-center space-x-3 cursor-pointer group">
+                        <input type="checkbox"
+                               name="tf32"
+                               checked
+                               class="w-5 h-5 rounded bg-gray-700 border-gray-600 text-cyan-500 focus:ring-cyan-500">
+                        <div>
+                            <span class="text-white font-medium">TF32 Precision</span>
+                            <p class="text-sm text-gray-400">Use TensorFloat-32 for NVIDIA Ampere GPUs</p>
+                        </div>
+                    </label>
+                </div>
+            </div>
+
+            <!-- Logging & Upload -->
+            <div class="bg-gray-800/50 backdrop-blur-lg rounded-xl border border-gray-700 p-6 mb-6">
+                <h2 class="text-xl font-bold mb-4 flex items-center">
+                    <i class="fas fa-upload text-orange-400 mr-3"></i>
+                    Logging & Upload
+                </h2>
+                <div class="space-y-3 mb-4">
+                    <label class="flex items-center space-x-3 cursor-pointer group">
+                        <input type="checkbox"
+                               name="report_to_wandb"
+                               class="w-5 h-5 rounded bg-gray-700 border-gray-600 text-orange-500 focus:ring-orange-500">
+                        <div>
+                            <span class="text-white font-medium">Report to Weights & Biases</span>
+                            <p class="text-sm text-gray-400">Track metrics and visualizations with W&B</p>
+                        </div>
+                    </label>
+                    <label class="flex items-center space-x-3 cursor-pointer group">
+                        <input type="checkbox"
+                               name="upload_to_hub"
+                               class="w-5 h-5 rounded bg-gray-700 border-gray-600 text-orange-500 focus:ring-orange-500">
+                        <div>
+                            <span class="text-white font-medium">Upload to HuggingFace Hub</span>
+                            <p class="text-sm text-gray-400">Automatically push model to Hub after training</p>
+                        </div>
+                    </label>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-300 mb-2">ntfy Topic (Optional)</label>
+                        <input type="text"
+                               name="ntfy_topic"
+                               placeholder="my-training-notifications"
+                               class="w-full px-4 py-3 bg-gray-900/50 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 text-white placeholder-gray-500">
+                        <p class="text-xs text-gray-400 mt-1">Get push notifications on checkpoint saves</p>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-300 mb-2">HuggingFace Token (Optional)</label>
+                        <input type="password"
+                               name="hf_token"
+                               placeholder="hf_..."
+                               class="w-full px-4 py-3 bg-gray-900/50 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 text-white placeholder-gray-500">
+                        <p class="text-xs text-gray-400 mt-1">Leave empty to use HF_TOKEN env var</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Submit Buttons -->
+            <div class="flex items-center justify-between">
+                <a href="{{ url_for('configs') }}"
+                   class="px-6 py-3 bg-gray-700 hover:bg-gray-600 rounded-lg font-medium transition flex items-center space-x-2">
+                    <i class="fas fa-times"></i>
+                    <span>Cancel</span>
+                </a>
+                <button type="submit"
+                        class="px-8 py-3 bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 rounded-lg font-medium transition-all transform hover:scale-105 flex items-center space-x-2">
+                    <i class="fas fa-save"></i>
+                    <span>Create Configuration</span>
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Footer -->
+    <footer class="mt-16 border-t border-gray-800 py-6">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center text-gray-500 text-sm">
+            <p>Late Training Dashboard &middot; Built with Flask & Tailwind CSS</p>
+        </div>
+    </footer>
+
+    <script>
+        function toggleLoraSettings() {
+            const trainingType = document.getElementById('training_type').value;
+            const loraSettings = document.getElementById('lora_settings');
+            if (trainingType === 'lora') {
+                loraSettings.style.display = 'block';
+            } else {
+                loraSettings.style.display = 'none';
+            }
+        }
+    </script>
+</body>
+</html>

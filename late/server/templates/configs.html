@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Training Configs - Late Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body class="bg-black min-h-screen text-white">
+    <!-- Navigation -->
+    <nav class="bg-[#1a1a2e]/80 backdrop-blur-lg border-b border-[#2D3561] sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16">
+                <div class="flex items-center space-x-8">
+                    <div class="flex items-center space-x-3">
+                        <img src="{{ url_for('static', filename='late-logo.png') }}" alt="Late Logo" class="w-10 h-10 rounded-full">
+                        <span class="text-2xl font-bold bg-gradient-to-r from-[#D8DBF0] to-white bg-clip-text text-transparent">Late Training</span>
+                    </div>
+                    <div class="hidden md:flex space-x-4">
+                        <a href="{{ url_for('index') }}" class="px-3 py-2 rounded-md text-sm font-medium text-gray-300 hover:bg-[#2D3561] hover:text-white transition">
+                            <i class="fas fa-list mr-2"></i>Queues
+                        </a>
+                        <a href="{{ url_for('jobs') }}" class="px-3 py-2 rounded-md text-sm font-medium text-gray-300 hover:bg-[#2D3561] hover:text-white transition">
+                            <i class="fas fa-tasks mr-2"></i>Jobs
+                        </a>
+                        <a href="{{ url_for('configs') }}" class="px-3 py-2 rounded-md text-sm font-medium bg-[#2D3561] text-white">
+                            <i class="fas fa-file-code mr-2"></i>Configs
+                        </a>
+                    </div>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <a href="{{ url_for('create_config') }}" class="px-4 py-2 bg-gradient-to-r from-[#2D3561] to-[#4A5080] hover:from-[#4A5080] hover:to-[#D8DBF0] rounded-lg text-sm flex items-center space-x-2 transition">
+                        <i class="fas fa-plus"></i>
+                        <span>New Config</span>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <!-- Page Header -->
+        <div class="mb-8">
+            <h1 class="text-4xl font-bold mb-2">Training Configurations</h1>
+            <p class="text-gray-400">Browse and manage your training configuration files</p>
+        </div>
+
+        <!-- Configs List -->
+        {% if not configs %}
+            <div class="bg-[#1a1a2e]/50 backdrop-blur-lg rounded-xl border border-[#2D3561] p-12 text-center">
+                <i class="fas fa-folder-open text-6xl text-[#4A5080] mb-4"></i>
+                <h3 class="text-xl font-semibold text-gray-400 mb-2">No config files found</h3>
+                <p class="text-gray-500">Create a new config to get started with training.</p>
+                <a href="{{ url_for('create_config') }}" class="mt-4 inline-block px-6 py-3 bg-gradient-to-r from-[#2D3561] to-[#4A5080] hover:from-[#4A5080] hover:to-[#D8DBF0] rounded-lg font-medium transition">
+                    <i class="fas fa-plus mr-2"></i>Create New Config
+                </a>
+            </div>
+        {% else %}
+            <!-- Stats -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                <div class="bg-[#1a1a2e]/80 rounded-lg p-4 border border-[#2D3561]">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-gray-400 text-sm">Total Configs</p>
+                            <p class="text-2xl font-bold">{{ configs|length }}</p>
+                        </div>
+                        <i class="fas fa-file text-3xl text-[#4A5080]"></i>
+                    </div>
+                </div>
+
+                <div class="bg-[#1a1a2e]/80 rounded-lg p-4 border border-[#2D3561]">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-gray-400 text-sm">Examples</p>
+                            <p class="text-2xl font-bold">{{ example_count }}</p>
+                        </div>
+                        <i class="fas fa-book text-3xl text-[#4A5080]"></i>
+                    </div>
+                </div>
+
+                <div class="bg-[#1a1a2e]/80 rounded-lg p-4 border border-[#2D3561]">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-gray-400 text-sm">Custom</p>
+                            <p class="text-2xl font-bold">{{ custom_count }}</p>
+                        </div>
+                        <i class="fas fa-user text-3xl text-[#4A5080]"></i>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Config Grid -->
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {% for config in configs %}
+                <div class="bg-[#1a1a2e]/80 backdrop-blur-lg rounded-xl border border-[#2D3561] overflow-hidden hover:border-[#4A5080] transition-all group">
+                    <div class="p-5">
+                        <!-- Icon and Name -->
+                        <div class="flex items-start space-x-3 mb-3">
+                            <div class="w-10 h-10 flex-shrink-0
+                                {% if 'examples' in config.relative %}bg-gradient-to-br from-green-500 to-emerald-600{% else %}bg-gradient-to-br from-blue-500 to-cyan-600{% endif %}
+                                rounded-lg flex items-center justify-center">
+                                <i class="fas {% if 'examples' in config.relative %}fa-book-open{% else %}fa-file-code{% endif %}"></i>
+                            </div>
+                            <div class="flex-1 min-w-0">
+                                <h3 class="font-bold text-white truncate mb-1">{{ config.name }}</h3>
+                                <p class="text-xs text-gray-400 font-mono truncate">{{ config.relative }}</p>
+                            </div>
+                        </div>
+
+                        <!-- Badges -->
+                        <div class="flex flex-wrap gap-2 mb-4">
+                            {% if 'examples' in config.relative %}
+                            <span class="px-2 py-1 bg-gradient-to-br from-[#2D3561] to-[#4A5080]/20 border border-[#2D3561] text-green-400 rounded text-xs font-medium">
+                                <i class="fas fa-star mr-1"></i>Example
+                            </span>
+                            {% endif %}
+                            {% if 'lora' in config.name.lower() %}
+                            <span class="px-2 py-1 bg-[#4A5080]/20 border border-[#4A5080] text-[#D8DBF0] rounded text-xs font-medium">
+                                <i class="fas fa-layer-group mr-1"></i>LoRA
+                            </span>
+                            {% endif %}
+                            {% if 'notification' in config.name.lower() or 'ntfy' in config.name.lower() %}
+                            <span class="px-2 py-1 bg-[#2D3561]/20 border border-[#2D3561] text-[#D8DBF0] rounded text-xs font-medium">
+                                <i class="fas fa-bell mr-1"></i>Notifications
+                            </span>
+                            {% endif %}
+                        </div>
+
+                        <!-- Actions -->
+                        <div class="flex gap-2">
+                            <form action="{{ url_for('start_training') }}" method="post" class="flex-1">
+                                <input type="hidden" name="config_path" value="{{ config.path }}">
+                                <button type="submit"
+                                        class="w-full px-3 py-2 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 rounded-lg font-medium transition text-sm flex items-center justify-center space-x-2">
+                                    <i class="fas fa-play"></i>
+                                    <span>Train</span>
+                                </button>
+                            </form>
+                            <a href="file://{{ config.path }}"
+                               class="px-3 py-2 bg-[#2D3561] hover:bg-[#4A5080] rounded-lg transition text-sm flex items-center justify-center">
+                                <i class="fas fa-external-link-alt"></i>
+                            </a>
+                        </div>
+
+                        <!-- Add to Queue -->
+                        <details class="mt-3">
+                            <summary class="text-sm text-gray-400 cursor-pointer hover:text-gray-300 flex items-center space-x-2">
+                                <i class="fas fa-plus-circle text-xs"></i>
+                                <span>Add to queue</span>
+                            </summary>
+                            <form action="{{ url_for('add_job_to_queue') }}" method="post" class="mt-2 space-y-2">
+                                <input type="hidden" name="config_path" value="{{ config.path }}">
+                                <select name="queue_name"
+                                        required
+                                        class="w-full px-3 py-2 bg-black border border-[#4A5080] rounded-lg text-sm text-white focus:outline-none focus:ring-2 focus:ring-[#D8DBF0]">
+                                    <option value="">Select queue...</option>
+                                    <!-- Would need to pass queues list from backend -->
+                                </select>
+                                <button type="submit"
+                                        class="w-full px-3 py-2 bg-[#4A5080]/20 hover:bg-[#4A5080]/30 border border-[#4A5080] text-[#D8DBF0] rounded-lg font-medium transition text-sm">
+                                    <i class="fas fa-plus mr-2"></i>Add to Queue
+                                </button>
+                            </form>
+                        </details>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        {% endif %}
+
+        <!-- Quick Tips -->
+        <div class="mt-12 bg-gradient-to-br from-blue-500/10 to-purple-500/10 border border-[#2D3561]/30 rounded-xl p-6">
+            <h3 class="text-lg font-bold mb-3 flex items-center">
+                <i class="fas fa-lightbulb text-yellow-400 mr-3"></i>
+                Quick Tips
+            </h3>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-gray-300">
+                <div class="flex items-start space-x-3">
+                    <i class="fas fa-check text-green-400 mt-1"></i>
+                    <p>Click <strong>Train</strong> to start a training job immediately</p>
+                </div>
+                <div class="flex items-start space-x-3">
+                    <i class="fas fa-check text-green-400 mt-1"></i>
+                    <p>Use <strong>Add to queue</strong> to schedule jobs sequentially</p>
+                </div>
+                <div class="flex items-start space-x-3">
+                    <i class="fas fa-check text-green-400 mt-1"></i>
+                    <p>Green badges indicate example configs from the repo</p>
+                </div>
+                <div class="flex items-start space-x-3">
+                    <i class="fas fa-check text-green-400 mt-1"></i>
+                    <p>Click the external link icon to open the file in your editor</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="mt-16 border-t border-[#2D3561] py-6">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center text-gray-500 text-sm">
+            <p>Late Training Dashboard &middot; Built with Flask & Tailwind CSS</p>
+        </div>
+    </footer>
+</body>
+</html>

@@ -11,6 +11,10 @@ output_dir: "/workspace/outputs/llama3.2-lora/"
 training_type: "lora"
 max_seq_length: 2048  # Reasonable for 3B model
 
+# Loss Masking Strategy (optional, defaults to "full")
+# Options: "full" (compute loss on full conversation) or "assistant_only" (mask user prompts)
+loss_masking_strategy: "full"  # Default, can be omitted
+
 # Hyperparameters for smaller model
 batch_size: 4  # Works on 16GB GPUs
 gradient_accumulation: 4  # Effective batch size: 16
@@ -33,7 +37,7 @@ lora:
   lora_dropout: 0.05
   target_modules:
     - "q_proj"
-    - "k_proj" 
+    - "k_proj"
     - "v_proj"
     - "o_proj"
     - "gate_proj"
@@ -43,3 +47,9 @@ lora:
 # Logging
 report_to_wandb: true
 upload_to_hub: true
+
+# Optional: Notifications via ntfy.sh (leave empty to disable)
+ntfy_topic: ""  # e.g., "my-training-runs"
+
+# Optional: HuggingFace Token (uses HF_TOKEN env var if not set)
+hf_token: ""  # or "${HF_TOKEN}"

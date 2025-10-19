@@ -56,6 +56,14 @@
 -   **Web Dashboard**: Launch a web server (`late serve`) to visually create, manage, and monitor your training queues from any browser.
 -   **Built for ROCm**: Optimized with defaults like `adamw_torch_fused` and `bfloat16` to get the best performance out of AMD hardware.
 
+### 🆕 What's New
+
+-   **🎯 Configurable Loss Masking**: Choose between "full" (default, simpler) or "assistant_only" loss masking strategies
+-   **🔔 Push Notifications**: Get ntfy.sh notifications on checkpoint saves, training completion, and errors
+-   **🔀 LoRA Merging**: Built-in command to merge LoRA adapters with base models and upload to Hub
+-   **✅ Comprehensive Testing**: 80%+ test coverage with pytest, ready for CI/CD
+-   **📚 Better Documentation**: Complete testing guide and example configurations
+
 ## 📦 Installation
 
 ### Prerequisites
@@ -374,6 +382,50 @@ late serve --port 8080
 ```
 Now open `http://localhost:8080` in your browser. If you run this on a remote server, you can forward the port or use a tool like ngrok to access it publicly.
 
+### Merging LoRA Adapters (`late merge`)
+
+Merge trained LoRA adapters with their base models and optionally upload to HuggingFace Hub.
+
+**Usage:**
+```bash
+# Merge and upload to Hub
+late merge /path/to/checkpoint-100 \
+  --base-model Qwen/Qwen3-32B \
+  --output username/merged-model
+
+# Merge without uploading
+late merge /path/to/checkpoint-100 \
+  --base-model Qwen/Qwen3-32B \
+  --output username/merged-model \
+  --no-upload
+
+# Specify local save path
+late merge /path/to/checkpoint-100 \
+  --base-model Qwen/Qwen3-32B \
+  --output username/merged-model \
+  --local-path ./my_merged_model
+
+# Create private repository
+late merge /path/to/checkpoint-100 \
+  --base-model Qwen/Qwen3-32B \
+  --output username/merged-model \
+  --private
+
+# Use config file
+late merge /path/to/checkpoint-100 --config merge_config.yml
+```
+
+**Merge Config File Format:**
+```yaml
+adapter_path: "/path/to/checkpoint-100"
+base_model: "Qwen/Qwen3-32B"
+output_repo_id: "username/merged-model"
+local_save_path: "./merged_output"
+upload_to_hub: true
+private_repo: false
+hf_token: ""  # Optional, uses HF_TOKEN env var if not set
+```
+
 ## 🌐 Web Dashboard
 
 The web dashboard provides a user-friendly way to:
@@ -384,6 +436,117 @@ The web dashboard provides a user-friendly way to:
 
 ![Web Dashboard Screenshot](https://i.imgur.com/placeholder.png)  <!-- Placeholder for a future screenshot -->
 *Note: Starting a queue is a CLI-only feature to ensure process stability.*
+
+## 🎯 Loss Masking Strategies
+
+Late supports two loss masking strategies for training:
+
+### Full Loss Masking (Default)
+
+**What it does:** Computes loss on the entire conversation (both user and assistant messages)
+
+**Benefits:**
+- ✅ Simpler and faster preprocessing
+- ✅ Learns from complete conversations
+- ✅ Good for most use cases
+- ✅ Recommended for beginners
+
+**Configuration:**
+```yaml
+# Default - can be omitted
+loss_masking_strategy: "full"
+```
+
+### Assistant-Only Loss Masking
+
+**What it does:** Masks user prompts from loss computation (sets to -100), only learns from assistant responses
+
+**Benefits:**
+- ✅ More targeted training (only learn assistant behavior)
+- ✅ Prevents model from learning user patterns
+- ✅ Traditional fine-tuning approach
+- ✅ May be better for instruction-following tasks
+
+**Trade-offs:**
+- ⚠️ Slower preprocessing than full masking
+- ⚠️ More complex implementation
+
+**Configuration:**
+```yaml
+# Must be explicitly set
+loss_masking_strategy: "assistant_only"
+```
+
+### Example Comparison
+
+**Full Masking (Default):**
+```yaml
+base_model: "meta-llama/Llama-3.2-3B-Instruct"
+dataset_name: "yahma/alpaca-cleaned"
+loss_masking_strategy: "full"  # Simple preprocessing
+# ... rest of config
+```
+
+**Assistant-Only Masking:**
+```yaml
+base_model: "meta-llama/Llama-3.2-3B-Instruct"
+dataset_name: "yahma/alpaca-cleaned"
+loss_masking_strategy: "assistant_only"  # Masked user prompts
+# ... rest of config
+```
+
+See `examples/loss_masking/` for complete examples.
+
+## 🔔 Push Notifications with ntfy.sh
+
+Get real-time notifications about your training runs on your phone or desktop!
+
+### Setup
+
+1. **Install ntfy app** on your phone ([iOS](https://apps.apple.com/us/app/ntfy/id1625396347) / [Android](https://play.google.com/store/apps/details?id=io.heckel.ntfy))
+2. **Choose a unique topic** (e.g., "mytraining-20250118")
+3. **Subscribe** to your topic in the app
+4. **Add to config:**
+
+```yaml
+ntfy_topic: "mytraining-20250118"
+```
+
+### Notifications Sent
+
+- 🚀 Training start
+- 💾 Checkpoint saves (every `save_steps`)
+- ✅ Training completion
+- 📤 Model upload success/failure
+- 📂 Checkpoint resume events
+- ❌ Error notifications
+
+### Example Configuration
+
+```yaml
+base_model: "meta-llama/Llama-3.2-3B-Instruct"
+dataset_name: "yahma/alpaca-cleaned"
+output_model_name: "username/my-model"
+output_dir: "./outputs/"
+training_type: "lora"
+
+# Enable notifications
+ntfy_topic: "my-training-notifications"
+
+# Checkpoints trigger notifications
+save_steps: 50  # Notification every 50 steps
+
+# ... rest of config
+```
+
+### Testing Notifications
+
+Send a test notification:
+```bash
+curl -d "Test from Late!" ntfy.sh/your-topic-name
+```
+
+See `examples/with_notifications.yml` for a complete example.
 
 ## 📂 Example Training Configurations
 
@@ -496,6 +659,15 @@ lora:
     - "o_proj"
 ```
 
+### Loss Masking Strategy (NEW)
+- `loss_masking_strategy`: Choose loss computation strategy (default: "full")
+  - `"full"`: Compute loss on entire conversation (default, simpler, faster)
+  - `"assistant_only"`: Mask user prompts from loss (-100 tokens)
+
+### Notifications & Tokens (NEW)
+- `ntfy_topic`: ntfy.sh topic for push notifications (optional, default: none)
+- `hf_token`: HuggingFace API token (optional, uses HF_TOKEN env var if not set)
+
 ### Logging & Upload
 - `report_to_wandb`: Enable Weights & Biases logging (default: false)
 - `upload_to_hub`: Upload to HuggingFace Hub after training (default: false)
@@ -508,9 +680,12 @@ dataset_name: "your-dataset/chat-format"
 output_model_name: "your-username/model-finetuned"
 output_dir: "/workspace/outputs/my-model/"
 
-# Training Setup  
+# Training Setup
 training_type: "lora"  # or "sft" for full fine-tuning
 max_seq_length: 8192
+
+# Loss Masking Strategy (NEW - optional, defaults to "full")
+loss_masking_strategy: "full"  # or "assistant_only"
 
 # Hyperparameters
 batch_size: 1
@@ -532,6 +707,10 @@ lora:
   r: 128
   lora_alpha: 256
   target_modules: ["q_proj", "k_proj", "v_proj", "o_proj"]
+
+# Notifications & Tokens (NEW - optional)
+ntfy_topic: "my-training-runs"  # Push notifications
+hf_token: ""  # Or uses HF_TOKEN env var
 
 # Logging
 report_to_wandb: true

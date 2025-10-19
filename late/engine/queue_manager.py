@@ -25,28 +25,28 @@ class QueueManager:
         """Creates a new, empty .qml file."""
         qml_path = self._get_qml_path(queue_name)
         if qml_path.exists():
-            print(f"⚠️ Queue '{queue_name}' already exists.")
+            print(f"[WARN] Queue '{queue_name}' already exists.")
             return
         qml_path.touch()
-        print(f"✅ Created new queue: {qml_path}")
+        print(f"[OK] Created new queue: {qml_path}")
 
     def add_to_queue(self, queue_name: str, config_path: str):
         """Appends a config file path to a .qml file."""
         qml_path = self._get_qml_path(queue_name)
         if not Path(config_path).exists():
-            print(f"❌ Error: Config file not found at '{config_path}'")
+            print(f"[ERROR] Config file not found at '{config_path}'")
             return
-            
-        with open(qml_path, 'a') as f:
+
+        with open(qml_path, 'a', encoding='utf-8') as f:
             f.write(f"{os.path.abspath(config_path)}\n")
-        print(f"✅ Added '{config_path}' to queue '{queue_name}'.")
+        print(f"[OK] Added '{config_path}' to queue '{queue_name}'.")
 
     def get_queue_contents(self, queue_name: str) -> list[str]:
         """Reads and returns the list of config paths from a queue."""
         qml_path = self._get_qml_path(queue_name)
         if not qml_path.exists():
             return []
-        with open(qml_path, 'r') as f:
+        with open(qml_path, 'r', encoding='utf-8') as f:
             return [line.strip() for line in f if line.strip()]
             
     def delete_queue(self, queue_name: str):
@@ -58,9 +58,9 @@ class QueueManager:
             progress_path = self._get_progress_path(queue_name)
             if progress_path.exists():
                 progress_path.unlink()
-            print(f"🗑️ Deleted queue '{queue_name}'.")
+            print(f"[OK] Deleted queue '{queue_name}'.")
         else:
-            print(f"❌ Queue '{queue_name}' not found.")
+            print(f"[ERROR] Queue '{queue_name}' not found.")
     
     def _get_progress_path(self, queue_name: str) -> Path:
         """Get the progress file path for a queue."""
@@ -76,7 +76,7 @@ class QueueManager:
             'completed_index': completed_index,
             'timestamp': os.path.getmtime(self._get_qml_path(queue_name))
         }
-        with open(progress_path, 'w') as f:
+        with open(progress_path, 'w', encoding='utf-8') as f:
             json.dump(progress_data, f)
     
     def get_progress(self, queue_name: str) -> int:
@@ -86,15 +86,15 @@ class QueueManager:
             return -1
         
         try:
-            with open(progress_path, 'r') as f:
+            with open(progress_path, 'r', encoding='utf-8') as f:
                 data = json.load(f)
-            
+
             # Check if queue file has been modified since progress was saved
             qml_path = self._get_qml_path(queue_name)
             if qml_path.exists():
                 current_mtime = os.path.getmtime(qml_path)
                 if current_mtime > data['timestamp']:
-                    print(f"⚠️ Queue '{queue_name}' has been modified since last run. Starting from beginning.")
+                    print(f"[WARN] Queue '{queue_name}' has been modified since last run. Starting from beginning.")
                     return -1
             
             return data['completed_index']

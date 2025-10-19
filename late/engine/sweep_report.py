@@ -15,7 +15,7 @@ def generate_sweep_report(sweep_dir: Path):
     """Generate an Excel report for a completed sweep with loss graphs."""
     
     # Load sweep summary
-    with open(sweep_dir / 'sweep_summary.json', 'r') as f:
+    with open(sweep_dir / 'sweep_summary.json', 'r', encoding='utf-8') as f:
         summary = json.load(f)
     
     # Collect results from all runs
@@ -25,7 +25,7 @@ def generate_sweep_report(sweep_dir: Path):
         
         # Load metadata
         metadata_path = config_dir / f"config_{i}_metadata.json"
-        with open(metadata_path, 'r') as f:
+        with open(metadata_path, 'r', encoding='utf-8') as f:
             metadata = json.load(f)
         
         # Try to load training history
@@ -33,7 +33,7 @@ def generate_sweep_report(sweep_dir: Path):
         history_path = Path("training_runs") / run_name / "training_history.json"
         
         if history_path.exists():
-            with open(history_path, 'r') as f:
+            with open(history_path, 'r', encoding='utf-8') as f:
                 history = json.load(f)
             
             # Get final loss and best loss
@@ -198,5 +198,5 @@ def generate_sweep_report(sweep_dir: Path):
     report_path = sweep_dir / f'sweep_report_{summary["sweep_id"]}.xlsx'
     wb.save(report_path)
     
-    print(f"📊 Sweep report generated: {report_path}")
+    print(f"[INFO] Sweep report generated: {report_path}")
     return report_path

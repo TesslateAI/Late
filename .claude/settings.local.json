@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -m late.cli serve --port 8080)",
+      "Bash(pip install -e .)",
+      "Bash(copy \"C:\\Users\\smirxs\\Downloads\\Late\\assets\\late-logo.png\" \"C:\\Users\\smirxs\\Downloads\\Late\\late\\server\\static\\late-logo.png\")",
+      "Bash(python -m late.cli --help)",
+      "Bash(python -m late.cli queue --help)",
+      "Bash(timeout /t 3)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
