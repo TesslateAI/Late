@@ -31,7 +31,7 @@
                             <i class="fas fa-list mr-2"></i>Queues
                         </a>
                         <a href="{{ url_for('jobs') }}" class="px-3 py-2 rounded-md text-sm font-medium bg-[#2D3561] text-white">
-                            <i class="fas fa-tasks mr-2"></i>Runs
+                            <i class="fas fa-tasks mr-2"></i>Jobs
                         </a>
                         <a href="{{ url_for('configs') }}" class="px-3 py-2 rounded-md text-sm font-medium text-[#D8DBF0] hover:bg-[#2D3561] hover:text-white transition">
                             <i class="fas fa-file-code mr-2"></i>Configs
@@ -51,8 +51,8 @@
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <!-- Page Header -->
         <div class="mb-8">
-            <h1 class="text-4xl font-bold mb-2">Training Runs</h1>
-            <p class="text-gray-400">All your training runs with shareable URLs</p>
+            <h1 class="text-4xl font-bold mb-2">Training Jobs</h1>
+            <p class="text-gray-400">Monitor and manage your training jobs with shareable URLs</p>
         </div>
 
         <!-- Flash Messages -->
@@ -70,7 +70,7 @@
         {% if not runs %}
             <div class="bg-gray-800/30 backdrop-blur-lg rounded-xl border border-gray-700 p-12 text-center">
                 <i class="fas fa-clipboard-list text-6xl text-gray-600 mb-4"></i>
-                <h3 class="text-xl font-semibold text-gray-400 mb-2">No training runs yet</h3>
+                <h3 class="text-xl font-semibold text-gray-400 mb-2">No jobs running</h3>
                 <p class="text-gray-500">Start a training job from a queue or config to see it here.</p>
                 <a href="{{ url_for('index') }}" class="mt-4 inline-block px-6 py-3 bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 rounded-lg font-medium transition">
                     <i class="fas fa-arrow-left mr-2"></i>Back to Queues
@@ -86,7 +86,7 @@
                 <div class="bg-gray-800/50 backdrop-blur-lg rounded-lg border border-gray-700 p-4">
                     <div class="flex items-center justify-between">
                         <div>
-                            <p class="text-gray-400 text-sm">Total Runs</p>
+                            <p class="text-gray-400 text-sm">Total Jobs</p>
                             <p class="text-2xl font-bold">{{ runs | length }}</p>
                         </div>
                         <i class="fas fa-layer-group text-3xl text-gray-600"></i>
