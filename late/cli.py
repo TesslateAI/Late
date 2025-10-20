@@ -38,6 +38,62 @@ def version():
     click.echo(BANNER)
     click.echo("Late version 0.1.0")
 
+@cli.command()
+def clear():
+    """Clear all GPU VRAM and training-related memory.
+
+    This command clears:
+    - GPU VRAM memory (CUDA/ROCm)
+    - Python garbage collection
+    - PyTorch caches
+
+    Useful before starting new training runs to ensure clean state.
+    """
+    from late.engine.training import clear_memory
+    import torch
+
+    click.echo("🧹 Clearing all training-related memory...")
+
+    # Detect platform
+    if torch.cuda.is_available():
+        device_name = torch.cuda.get_device_name(0)
+        if hasattr(torch.version, 'hip') and 'rocm' in torch.version.hip:
+            platform = f"AMD ROCm ({device_name})"
+        else:
+            platform = f"NVIDIA CUDA ({device_name})"
+
+        # Get memory before clearing
+        allocated_before = torch.cuda.memory_allocated() / 1024**3  # GB
+        reserved_before = torch.cuda.memory_reserved() / 1024**3    # GB
+
+        click.echo(f"📊 Platform: {platform}")
+        click.echo(f"📊 VRAM Allocated: {allocated_before:.2f} GB")
+        click.echo(f"📊 VRAM Reserved: {reserved_before:.2f} GB")
+        click.echo("")
+    else:
+        platform = "CPU"
+        click.echo(f"📊 Platform: {platform}")
+        click.echo("")
+
+    # Clear memory
+    clear_memory()
+
+    # Show memory after clearing
+    if torch.cuda.is_available():
+        allocated_after = torch.cuda.memory_allocated() / 1024**3   # GB
+        reserved_after = torch.cuda.memory_reserved() / 1024**3     # GB
+        freed_allocated = allocated_before - allocated_after
+        freed_reserved = reserved_before - reserved_after
+
+        click.echo(f"✅ Memory cleared successfully!")
+        click.echo(f"📉 VRAM Allocated: {allocated_after:.2f} GB (freed {freed_allocated:.2f} GB)")
+        click.echo(f"📉 VRAM Reserved: {reserved_after:.2f} GB (freed {freed_reserved:.2f} GB)")
+    else:
+        click.echo(f"✅ Memory cleared successfully!")
+
+    click.echo("")
+    click.echo("Ready for training! 🚀")
+
 @cli.group()
 def patch():
     """Patch PyTorch environment for optimal performance (amd, nvidia, or cpu)."""

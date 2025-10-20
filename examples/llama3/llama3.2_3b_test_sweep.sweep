@@ -1,0 +1,25 @@
+# Llama 3.2 3B LoRA Test Sweep
+# Quick test sweep for learning rate and LoRA rank optimization
+
+sweep_id: "llama32_3b_lora_test"
+
+# Sweep learning rate and LoRA rank
+sweep_parameters:
+  learning_rate: [0.0001, 0.0002, 0.0003]
+  lora.r: [32, 64]
+
+# Fixed parameters for quick testing
+overrides:
+  max_seq_length: 1024  # Shorter context for faster training
+  batch_size: 4
+  gradient_accumulation: 4
+  epochs: 1
+  gradient_checkpointing: true
+  save_steps: 50
+  tf32: false  # AMD GPU compatibility
+  report_to_wandb: false  # Disable for testing
+  upload_to_hub: false  # Disable for testing
+
+# Early stopping for quick test
+early_stop:
+  max_steps: 50  # Only run 50 steps per config
