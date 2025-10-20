@@ -1,0 +1,57 @@
+# Llama 3 8B with Unsloth - Fast LoRA Fine-Tuning
+# Optimized for high-end GPUs (40-80GB VRAM) with 3-4x speedup
+
+# Model and Dataset
+base_model: "unsloth/Meta-Llama-3-8B-Instruct"  # Unsloth-optimized model
+dataset_name: "mlabonne/FineTome-100k"  # High-quality curated dataset
+output_model_name: "your-username/llama3-8b-unsloth-finetune"
+output_dir: "/workspace/outputs/llama3-8b-unsloth/"
+
+# Training Configuration
+training_type: "lora"
+max_seq_length: 4096  # Longer context for 8B model
+
+# Enable Unsloth for 3-4x speedup!
+use_unsloth: true
+
+# Loss Masking Strategy
+loss_masking_strategy: "full"
+
+# Hyperparameters optimized for Unsloth + 8B model
+batch_size: 4  # Larger model needs smaller batch
+gradient_accumulation: 8  # Effective batch size: 32
+epochs: 3
+learning_rate: 0.0003  # Slightly higher for LoRA
+lr_scheduler_type: "cosine"
+optim: "adamw_torch_fused"
+save_steps: 50
+
+# Memory Optimization
+gradient_checkpointing: true
+torch_compile: false  # Unsloth has its own optimizations
+tf32: false  # Disabled for AMD GPUs
+cache_dir: "~/.cache/late/models"
+
+# LoRA Configuration for 8B model
+lora:
+  r: 128  # Higher rank for larger model
+  lora_alpha: 256
+  lora_dropout: 0.1  # Will be overridden to 0 by Unsloth
+  target_modules:
+    - "q_proj"
+    - "k_proj"
+    - "v_proj"
+    - "o_proj"
+    - "gate_proj"
+    - "up_proj"
+    - "down_proj"
+
+# Logging
+report_to_wandb: false
+upload_to_hub: false
+
+# Optional: Notifications
+ntfy_topic: ""
+
+# Optional: HuggingFace Token
+hf_token: ""

@@ -1,0 +1,58 @@
+# Llama 3.2 3B with Unsloth - Fast LoRA Fine-Tuning
+# Optimized for consumer GPUs (16-24GB VRAM) with 2-3x speedup
+
+# Model and Dataset
+base_model: "unsloth/Llama-3.2-3B-Instruct"  # Unsloth-optimized model
+dataset_name: "mlabonne/FineTome-100k"  # High-quality curated dataset
+output_model_name: "your-username/llama3.2-3b-unsloth-finetune"
+output_dir: "/workspace/outputs/llama3.2-unsloth/"
+
+# Training Configuration
+training_type: "lora"
+max_seq_length: 2048  # Reasonable for 3B model
+
+# Enable Unsloth for 2-3x speedup!
+use_unsloth: true
+
+# Loss Masking Strategy (optional, defaults to "full")
+loss_masking_strategy: "full"  # Simpler and faster
+
+# Hyperparameters optimized for Unsloth
+batch_size: 8  # Can use larger batch with Unsloth's memory optimization
+gradient_accumulation: 2  # Effective batch size: 16
+epochs: 1
+learning_rate: 0.0002
+lr_scheduler_type: "cosine"
+optim: "adamw_torch_fused"
+save_steps: 100
+
+# Memory Optimization
+gradient_checkpointing: true  # Unsloth handles this efficiently
+torch_compile: false  # Unsloth has its own optimizations
+tf32: false  # Disabled for AMD GPUs
+cache_dir: "~/.cache/late/models"
+
+# LoRA Configuration for 3B model
+# Note: Unsloth sets lora_dropout=0 automatically for best performance
+lora:
+  r: 64  # Good balance for 3B model
+  lora_alpha: 128
+  lora_dropout: 0.05  # Will be overridden to 0 by Unsloth
+  target_modules:
+    - "q_proj"
+    - "k_proj"
+    - "v_proj"
+    - "o_proj"
+    - "gate_proj"
+    - "up_proj"
+    - "down_proj"
+
+# Logging
+report_to_wandb: false  # Set to true to enable W&B tracking
+upload_to_hub: false  # Set to true to upload after training
+
+# Optional: Notifications via ntfy.sh
+ntfy_topic: ""  # e.g., "my-training-runs"
+
+# Optional: HuggingFace Token
+hf_token: ""  # or "${HF_TOKEN}"

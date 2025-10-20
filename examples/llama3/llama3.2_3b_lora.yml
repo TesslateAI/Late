@@ -11,6 +11,9 @@ output_dir: "/workspace/outputs/llama3.2-lora/"
 training_type: "lora"
 max_seq_length: 2048  # Reasonable for 3B model
 
+# Unsloth Integration (optional) - Provides significant speedup on both AMD and NVIDIA GPUs
+use_unsloth: true
+
 # Loss Masking Strategy (optional, defaults to "full")
 # Options: "full" (compute loss on full conversation) or "assistant_only" (mask user prompts)
 loss_masking_strategy: "full"  # Default, can be omitted

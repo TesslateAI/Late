@@ -37,6 +37,10 @@ extras = {
         "cmake",
         "pybind11"
     ],
+    # Note: Unsloth for AMD GPUs must be installed separately using:
+    # pip install --no-deps unsloth unsloth-zoo
+    # pip install --no-deps git+https://github.com/unslothai/unsloth-zoo.git
+    # pip install "unsloth[amd] @ git+https://github.com/unslothai/unsloth"
     "test": [
         "pytest>=7.0.0",
         "pytest-cov>=4.0.0",

@@ -1,0 +1,55 @@
+# Qwen 2.5 7B with Unsloth - Fast LoRA Fine-Tuning
+# Optimized for high-end GPUs with 3x speedup
+
+# Model and Dataset
+base_model: "unsloth/Qwen2.5-7B-Instruct"  # Unsloth-optimized Qwen model
+dataset_name: "mlabonne/FineTome-100k"  # High-quality curated dataset
+output_model_name: "your-username/qwen2.5-7b-unsloth-finetune"
+output_dir: "/workspace/outputs/qwen2.5-7b-unsloth/"
+
+# Training Configuration
+training_type: "lora"
+max_seq_length: 4096
+
+# Enable Unsloth for 3x speedup!
+use_unsloth: true
+
+# Loss Masking Strategy
+loss_masking_strategy: "full"
+
+# Hyperparameters
+batch_size: 4
+gradient_accumulation: 8  # Effective batch size: 32
+epochs: 3
+learning_rate: 0.0003
+lr_scheduler_type: "cosine"
+optim: "adamw_torch_fused"
+save_steps: 50
+
+# Memory Optimization
+gradient_checkpointing: true
+torch_compile: false
+tf32: false  # AMD compatible
+cache_dir: "~/.cache/late/models"
+
+# LoRA Configuration
+lora:
+  r: 128
+  lora_alpha: 256
+  lora_dropout: 0.05
+  target_modules:
+    - "q_proj"
+    - "k_proj"
+    - "v_proj"
+    - "o_proj"
+    - "gate_proj"
+    - "up_proj"
+    - "down_proj"
+
+# Logging
+report_to_wandb: false
+upload_to_hub: false
+
+# Optional
+ntfy_topic: ""
+hf_token: ""

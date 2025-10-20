@@ -95,12 +95,16 @@ def generate_training_script(config: dict) -> str:
     # Determine loss masking strategy (default: "full")
     loss_strategy = config.get('loss_masking_strategy', 'full')
 
+    # Check if Unsloth should be used
+    use_unsloth = config.get('use_unsloth', False)
+
     # Build the script string
     script = f"""
 import os
 import torch
 import logging
 import requests
+{'from unsloth import FastLanguageModel' if use_unsloth else '# Unsloth not enabled'}
 from transformers import AutoModelForCausalLM, AutoTokenizer, TrainingArguments, DataCollatorForLanguageModeling, TrainerCallback
 from datasets import load_dataset
 from trl import SFTTrainer, SFTConfig
@@ -187,6 +191,26 @@ else:
     attn_impl = "flash_attention_2"
     logger.info(f"[INFO] Using GPU with bfloat16 precision and Flash Attention 2")
 
+"""
+
+    # Add model loading based on whether Unsloth is used
+    if use_unsloth:
+        script += """
+# Using Unsloth for optimized training
+# Note: Unsloth handles bitsandbytes instability on AMD GPUs by automatically
+# using 16-bit LoRA when load_in_4bit=True to avoid HSA_STATUS_ERROR exceptions
+logger.info("[INFO] Using Unsloth for accelerated training")
+model, tokenizer = FastLanguageModel.from_pretrained(
+    model_name = config['base_model'],
+    max_seq_length = config['max_seq_length'],
+    dtype = dtype,
+    load_in_4bit = True,
+)
+
+# Unsloth handles tokenizer setup - using as-is
+"""
+    else:
+        script += """
 model = AutoModelForCausalLM.from_pretrained(
     config['base_model'],
     torch_dtype=dtype,
@@ -202,16 +226,38 @@ if config.get('gradient_checkpointing', True):
     logger.info("✓ Gradient checkpointing enabled")
 
 tokenizer = AutoTokenizer.from_pretrained(config['base_model'], cache_dir=os.path.expanduser(config.get('cache_dir', '~/.cache/late/models')))
+
+# Set up tokenizer padding
 if tokenizer.pad_token is None:
     tokenizer.pad_token = tokenizer.eos_token
 tokenizer.padding_side = "right"
+"""
 
+    script += """
 # --- 4. LoRA Configuration (if applicable) ---
 """
     if is_lora:
-        script += f"""
+        if use_unsloth:
+            script += """
+logger.info("Applying LoRA configuration with Unsloth...")
+lora_config_data = config.get('lora', {})
+model = FastLanguageModel.get_peft_model(
+    model,
+    r = lora_config_data.get('r', 128),
+    target_modules = lora_config_data.get('target_modules', ["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"]),
+    lora_alpha = lora_config_data.get('lora_alpha', 256),
+    lora_dropout = 0,  # Unsloth optimizes with 0 dropout
+    bias = "none",
+    use_gradient_checkpointing = "unsloth",  # Unsloth's optimized gradient checkpointing
+    random_state = 3407,
+    max_seq_length = config['max_seq_length'],
+)
+model.print_trainable_parameters()
+"""
+        else:
+            script += """
 logger.info("Applying LoRA configuration...")
-lora_config_data = config.get('lora', {{}})
+lora_config_data = config.get('lora', {})
 peft_config = LoraConfig(
     r=lora_config_data.get('r', 128),
     lora_alpha=lora_config_data.get('lora_alpha', 256),
@@ -225,8 +271,49 @@ model.print_trainable_parameters()
 
     # Add dataset preprocessing based on loss masking strategy
     if loss_strategy == 'full':
-        # Simple format - compute loss on full conversation (DEFAULT)
-        script += f"""
+        if use_unsloth:
+            # Use Unsloth's dataset formatting methods
+            script += f"""
+# --- 5. Dataset Loading and Preprocessing (Simple Unsloth approach) ---
+logger.info(f"Loading dataset: {{config['dataset_name']}}")
+from datasets import load_dataset
+dataset = load_dataset(config['dataset_name'], split="train")
+tokenizer.model_max_length = config['max_seq_length']
+
+def format_for_training(example):
+    \"\"\"Simple formatting using tokenizer's built-in chat template\"\"\"
+    # Support both 'messages' and 'conversations' field names
+    if "messages" in example:
+        messages = example["messages"]
+    elif "conversations" in example:
+        # Convert from 'from'/'value' format to 'role'/'content' format
+        conversations = example["conversations"]
+        messages = []
+        for msg in conversations:
+            role_map = {{"human": "user", "gpt": "assistant", "system": "system"}}
+            role = role_map.get(msg.get("from", ""), msg.get("from", "user"))
+            content = msg.get("value", "")
+            messages.append({{"role": role, "content": content}})
+    else:
+        raise ValueError(f"No messages or conversations field found. Available keys: {{list(example.keys())}}")
+    return {{"text": tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=False)}}
+
+# Filter out examples with None or empty messages
+def has_valid_messages(example):
+    msgs = None
+    if "messages" in example:
+        msgs = example["messages"]
+    elif "conversations" in example:
+        msgs = example["conversations"]
+    return msgs is not None and isinstance(msgs, list) and len(msgs) > 0
+
+dataset = dataset.filter(has_valid_messages)
+processed_dataset = dataset.map(format_for_training, remove_columns=list(dataset.features))
+logger.info(f"✓ Dataset formatted for Unsloth. Total examples: {{len(processed_dataset)}}")
+"""
+        else:
+            # Original formatting for standard training
+            script += f"""
 # --- 5. Dataset Loading and Preprocessing (FULL Loss Masking - DEFAULT) ---
 logger.info(f"Loading dataset: {{config['dataset_name']}}")
 dataset = load_dataset(config['dataset_name'], split="train")
@@ -399,7 +486,10 @@ trainer_kwargs = {{
     'callbacks': callbacks,
 }}
 
-# Add data_collator only for assistant_only strategy
+"""
+
+
+    script += f"""# Add data_collator only for assistant_only strategy
 """
     if loss_strategy != 'full':
         script += f"""trainer_kwargs['data_collator'] = data_collator
