@@ -14,6 +14,12 @@ app = Flask(__name__)
 app.secret_key = os.urandom(24) # Needed for flashing messages
 qm = QueueManager()
 
+# Add custom Jinja2 filters
+@app.template_filter('basename')
+def basename_filter(path):
+    """Extract filename from path"""
+    return os.path.basename(path)
+
 # Directory to persist run data
 RUNS_DIR = Path.cwd() / "training_runs"
 RUNS_DIR.mkdir(exist_ok=True)
