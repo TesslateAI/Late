@@ -1,16 +1,24 @@
 <div align="center">
   <img src="assets/late-logo.png" alt="Late Logo" width="200">
-  
+
   # Late
-  
+
   **A powerful toolkit for streamlining and scheduling ML training workflows on ROCm**
-  
+
   [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
   [![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
+  [![PyPI version](https://badge.fury.io/py/late-training.svg)](https://badge.fury.io/py/late-training)
+  [![Downloads](https://pepy.tech/badge/late-training)](https://pepy.tech/project/late-training)
   [![ROCm](https://img.shields.io/badge/ROCm-6.0+-red.svg)](https://www.amd.com/en/products/software/rocm.html)
   [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
-  
-  [Features](#-key-features) • [Installation](#-installation) • [Quick Start](#-quick-start) • [Documentation](#-documentation) • [Examples](#-examples)
+  [![GitHub stars](https://img.shields.io/github/stars/TesslateAI/Late.svg?style=social&label=Star)](https://github.com/TesslateAI/Late)
+  [![GitHub forks](https://img.shields.io/github/forks/TesslateAI/Late.svg?style=social&label=Fork)](https://github.com/TesslateAI/Late/fork)
+  [![GitHub issues](https://img.shields.io/github/issues/TesslateAI/Late.svg)](https://github.com/TesslateAI/Late/issues)
+  [![GitHub pull requests](https://img.shields.io/github/issues-pr/TesslateAI/Late.svg)](https://github.com/TesslateAI/Late/pulls)
+  [![Contributors](https://img.shields.io/github/contributors/TesslateAI/Late.svg)](https://github.com/TesslateAI/Late/graphs/contributors)
+  [![Last Commit](https://img.shields.io/github/last-commit/TesslateAI/Late.svg)](https://github.com/TesslateAI/Late/commits/main)
+
+  [Features](#-key-features) • [Installation](#-installation) • [Quick Start](#-quick-start) • [Examples](#-examples) • [Contributing](#-contributing)
 </div>
 
 ---
@@ -73,7 +81,17 @@
 - **Git**: For installation and version control
 - **OS**: Linux (Ubuntu/RHEL recommended)
 
-### Install from GitHub
+### Install from PyPI (Recommended)
+
+```bash
+# Install the package
+pip install late-training
+
+# Verify installation
+late --version
+```
+
+### Install from GitHub (Development)
 
 ```bash
 # Clone the repository
@@ -91,7 +109,7 @@ late --version
 
 ```bash
 # For training capabilities (optional)
-pip install -e ".[training]"
+pip install late-training[training]
 ```
 
 ## 🚀 Quick Start
@@ -149,41 +167,6 @@ late serve
 # Open http://localhost:8080 in your browser
 ```
 
-## 📚 Documentation
-
-<table>
-<tr>
-<td width="33%" valign="top">
-
-### 🏃 Getting Started
-- [Installation](#-installation)
-- [Quick Start](#-quick-start)
-- [Environment Setup](#environment-patching-late-patch)
-- [Your First Training](#running-a-single-training-job-late-train)
-
-</td>
-<td width="33%" valign="top">
-
-### 🔧 Core Features
-- [Training Configs](#training-configuration-yml)
-- [Hyperparameter Sweeps](#hyperparameter-sweeps-late-sweep)
-- [Queue Management](#managing-training-queues-late-queue-)
-- [Web Dashboard](#-web-dashboard)
-
-</td>
-<td width="33%" valign="top">
-
-### 📖 Advanced
-- [Configuration Reference](#-complete-configuration-reference)
-- [Training Run Management](#-training-run-management)
-- [API Token Setup](#setting-api-tokens-late-set)
-- [Examples](examples/)
-
-</td>
-</tr>
-</table>
-
----
 
 ## 🎯 Core Concepts
 
@@ -234,6 +217,10 @@ A QML file is a plain text file that lists the absolute paths to your YAML confi
 
 The `late` CLI is the primary way to interact with the library.
 
+<div align="center">
+  <img src="assets/cli.png" alt="Late CLI Commands" width="700">
+</div>
+
 ### Environment Patching (`late patch`)
 
 Prepares a Python environment for ROCm training. It automatically installs PyTorch ROCm, Flash Attention and other core ML libraries. 
@@ -274,6 +261,10 @@ late patch --venv ./my_env --arch gfx942 --install-pytorch nightly --from-source
 ### Running a Single Training Job (`late train`)
 
 Run a training job directly from a YAML config file without using queues. Perfect for quick experiments or single runs.
+
+<div align="center">
+  <img src="assets/training_cli.png" alt="Late Training CLI Output" width="700">
+</div>
 
 **Usage:**
 ```bash
@@ -372,6 +363,27 @@ late set wandb YOUR_WANDB_API_KEY
 late set hf_token YOUR_HUGGINGFACE_TOKEN
 ```
 
+### Clearing GPU Memory (`late clear`)
+
+Clears GPU VRAM, Python garbage collection, and PyTorch caches across all platforms (AMD ROCm, NVIDIA CUDA, CPU).
+
+**Usage:**
+```bash
+# Clear all training memory
+late clear
+```
+
+This command:
+- Clears GPU VRAM (CUDA/ROCm automatically detected)
+- Runs Python garbage collection
+- Clears PyTorch caches
+- Displays memory stats before/after with freed amounts
+
+**When to use:**
+- Between training runs to free up VRAM
+- When encountering out-of-memory errors
+- Before starting a new experiment
+
 ### Launching the Web Dashboard (`late serve`)
 
 Starts a local web server to manage queues through a graphical interface.
@@ -434,7 +446,10 @@ The web dashboard provides a user-friendly way to:
 -   Delete existing queues.
 -   Add new training jobs to a queue by providing the path to the config file.
 
-![Web Dashboard Screenshot](https://i.imgur.com/placeholder.png)  <!-- Placeholder for a future screenshot -->
+<div align="center">
+  <img src="assets/training_dashboard.png" alt="Late Training Dashboard" width="800">
+</div>
+
 *Note: Starting a queue is a CLI-only feature to ensure process stability.*
 
 ## 🎯 Loss Masking Strategies
