@@ -7,6 +7,7 @@ import glob
 import requests
 import json
 from pathlib import Path
+from typing import Optional, Tuple
 
 def run_command(command: str, cwd: str = None):
     """Executes a shell command and streams its output."""
@@ -116,6 +117,107 @@ def _install_miopen_kernels(torch_path: Path, rocm_version: str, gfx_archs: list
         finally:
             shutil.rmtree(temp_dir)
 
+def _detect_environment_config(pip_executable: str) -> Tuple[Optional[str], Optional[str], Optional[str]]:
+    """Detect PyTorch version, ROCm version, and Python version from the environment."""
+    try:
+        # Get PyTorch version
+        result = subprocess.check_output(
+            [pip_executable, 'show', 'torch'],
+            text=True,
+            stderr=subprocess.DEVNULL
+        )
+        pytorch_version = None
+        for line in result.splitlines():
+            if line.startswith('Version:'):
+                pytorch_version = line.split(':', 1)[1].strip()
+                # Convert to major.minor format (e.g., 2.5.0 -> 2.5)
+                pytorch_version = '.'.join(pytorch_version.split('.')[:2])
+                break
+
+        # Get ROCm version from PyTorch
+        try:
+            hip_version = subprocess.check_output(
+                f"{pip_executable.replace('pip', 'python')} -c 'import torch; print(torch.version.hip if hasattr(torch.version, \"hip\") else \"\")'",
+                shell=True,
+                text=True,
+                stderr=subprocess.DEVNULL
+            ).strip()
+
+            rocm_version = None
+            if hip_version and hip_version != "None":
+                # HIP version format: 6.2.41134 -> extract 6.2
+                rocm_version = '.'.join(hip_version.split('.')[:2])
+        except:
+            rocm_version = None
+
+        # Get Python version
+        python_version = subprocess.check_output(
+            [pip_executable.replace('pip', 'python'), '--version'],
+            text=True,
+            stderr=subprocess.DEVNULL
+        ).strip()
+        # Extract version (e.g., "Python 3.11.5" -> "3.11")
+        python_version = '.'.join(python_version.split()[1].split('.')[:2])
+
+        return pytorch_version, rocm_version, python_version
+    except:
+        return None, None, None
+
+def _find_flash_attn_wheel(arch: str, pip_executable: str) -> Optional[str]:
+    """Find the appropriate Flash Attention wheel from FlashAttentionDist repository."""
+
+    # Detect environment configuration
+    pytorch_version, rocm_version, python_version = _detect_environment_config(pip_executable)
+
+    if not all([pytorch_version, rocm_version, python_version]):
+        print("[WARN] Could not detect environment configuration")
+        print(f"   PyTorch: {pytorch_version}, ROCm: {rocm_version}, Python: {python_version}")
+        return None
+
+    print(f"[INFO] Detected configuration:")
+    print(f"   Architecture: {arch}")
+    print(f"   ROCm: {rocm_version}")
+    print(f"   PyTorch: {pytorch_version}")
+    print(f"   Python: {python_version}")
+
+    # Construct wheel URL based on detected configuration
+    # Format: wheels/{arch}/rocm{ver}/pytorch{ver}/python{ver}/
+    base_url = "https://github.com/TesslateAI/FlashAttentionDist/raw/main"
+    wheel_dir = f"wheels/{arch}/rocm{rocm_version}/pytorch{pytorch_version}/python{python_version}"
+
+    # First, try to get the index.json to find available wheels
+    index_url = f"{base_url}/wheels/index.json"
+    try:
+        response = requests.get(index_url, timeout=10)
+        if response.status_code == 200:
+            index = response.json()
+
+            # Navigate through the index structure
+            if (arch in index.get('architectures', {}) and
+                f"rocm{rocm_version}" in index['architectures'][arch] and
+                f"pytorch{pytorch_version}" in index['architectures'][arch][f"rocm{rocm_version}"]):
+
+                wheels = index['architectures'][arch][f"rocm{rocm_version}"][f"pytorch{pytorch_version}"]
+
+                # Find wheel for the correct Python version
+                for wheel_info in wheels:
+                    if wheel_info.get('python') == f"python{python_version}":
+                        wheel_path = wheel_info['path']
+                        wheel_url = f"{base_url}/wheels/{wheel_path}"
+
+                        # Verify the wheel exists
+                        verify_response = requests.head(wheel_url, timeout=5)
+                        if verify_response.status_code == 200:
+                            print(f"[OK] Found pre-built wheel: {wheel_info['filename']}")
+                            return wheel_url
+    except Exception as e:
+        print(f"[WARN] Could not fetch wheel index: {e}")
+
+    # Fallback: try to construct URL directly and check if it exists
+    # Try to find any wheel in the directory by checking common patterns
+    print(f"[INFO] Searching for wheel at: {wheel_dir}")
+    return None
+
 def patch_rocm_environment(arch="gfx942", venv_path: str = None, rocm_version="latest", install_kernels=True, build_from_source=False, pytorch_install=None):
     """Automates patching for the ROCm environment by reading from a dependency file."""
     
@@ -195,17 +297,54 @@ def patch_rocm_environment(arch="gfx942", venv_path: str = None, rocm_version="l
     else:
         print("\n--- Skipping MIOpen Kernel installation as requested. ---")
 
+    # Flash Attention installation
+    print(f"\n--- Installing Flash Attention 2 ---")
+
     if build_from_source:
-        print(f"\n--- Building Flash Attention from source for {arch} ---")
+        print(f"[INFO] Building Flash Attention from source for {arch}")
         if os.path.exists("flash-attention"): shutil.rmtree("flash-attention")
         run_command("git clone https://github.com/ROCm/flash-attention.git")
         build_command = f"MAX_JOBS=$(nproc) GPU_ARCHS='{arch}' {python_executable} setup.py install"
         run_command(build_command, cwd="flash-attention")
         shutil.rmtree("flash-attention", ignore_errors=True)
     else:
-        print(f"\n--- Installing Flash Attention from pre-built wheel ---")
-        wheel_url = "https://github.com/TesslateAI/FlashAttentionDist/raw/main/flash_attn-2.8.3-cp312-cp312-linux_x86_64.whl"
-        run_command(f"{pip_executable} install {wheel_url}")
+        print(f"[INFO] Looking for pre-built Flash Attention wheel...")
+
+        # Try to find a matching wheel from FlashAttentionDist
+        wheel_url = _find_flash_attn_wheel(arch, pip_executable)
+
+        if wheel_url:
+            print(f"[INFO] Installing pre-built Flash Attention wheel")
+            try:
+                run_command(f"{pip_executable} install {wheel_url}")
+                print("[OK] Pre-built wheel installed successfully")
+            except SystemExit:
+                print(f"\n{'='*70}")
+                print(f"[ERROR] Failed to install pre-built wheel")
+                print(f"{'='*70}")
+                wheel_url = None
+
+        if not wheel_url:
+            # No wheel found or installation failed - build from source
+            print(f"\n{'='*70}")
+            print(f"[WARN] No pre-built Flash Attention wheel available for your configuration")
+            print(f"[WARN] Architecture: {arch}")
+
+            pytorch_ver, rocm_ver, python_ver = _detect_environment_config(pip_executable)
+            if pytorch_ver:
+                print(f"[WARN] PyTorch: {pytorch_ver} | ROCm: {rocm_ver} | Python: {python_ver}")
+
+            print(f"\n[INFO] Building Flash Attention from source instead...")
+            print(f"[INFO] This may take 10-30 minutes depending on your system")
+            print(f"{'='*70}\n")
+
+            if os.path.exists("flash-attention"):
+                shutil.rmtree("flash-attention")
+
+            run_command("git clone https://github.com/ROCm/flash-attention.git")
+            build_command = f"MAX_JOBS=$(nproc) GPU_ARCHS='{arch}' {python_executable} setup.py install"
+            run_command(build_command, cwd="flash-attention")
+            shutil.rmtree("flash-attention", ignore_errors=True)
     
 # --- Verifying Installation in Target Environment ---
     print("\n--- Verifying Installation in Target Environment ---")
