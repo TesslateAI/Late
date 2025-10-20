@@ -381,8 +381,8 @@
                         div.textContent = line;
                         logContainer.appendChild(div);
 
-                        // Extract loss values for chart
-                        const lossMatch = line.match(/'loss':\s*([\d.]+)/);
+                        // Extract loss values for chart - handle multiple formats
+                        const lossMatch = line.match(/(?:['"]?loss['"]?\s*[:=]\s*)([\d.]+)/i);
                         if (lossMatch) {
                             const loss = parseFloat(lossMatch[1]);
                             const chartId = '{{ job_id }}'.replace(/-/g, '_').replace(/\./g, '_');

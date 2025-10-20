@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Training Runs - Late Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @keyframes pulse-slow {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        .pulse-slow {
+            animation: pulse-slow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+    </style>
+</head>
+<body class="bg-black min-h-screen text-white">
+    <!-- Navigation -->
+    <nav class="bg-[#1a1a2e]/90 backdrop-blur-lg border-b border-[#2D3561] sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16">
+                <div class="flex items-center space-x-8">
+                    <div class="flex items-center space-x-3">
+                        <img src="{{ url_for('static', filename='late-logo.png') }}" alt="Late Logo" class="w-10 h-10 rounded-full">
+                        <span class="text-2xl font-bold bg-gradient-to-r from-[#D8DBF0] to-white bg-clip-text text-transparent">Late Training</span>
+                    </div>
+                    <div class="hidden md:flex space-x-4">
+                        <a href="{{ url_for('index') }}" class="px-3 py-2 rounded-md text-sm font-medium text-[#D8DBF0] hover:bg-[#2D3561] hover:text-white transition">
+                            <i class="fas fa-list mr-2"></i>Queues
+                        </a>
+                        <a href="{{ url_for('jobs') }}" class="px-3 py-2 rounded-md text-sm font-medium bg-[#2D3561] text-white">
+                            <i class="fas fa-tasks mr-2"></i>Runs
+                        </a>
+                        <a href="{{ url_for('configs') }}" class="px-3 py-2 rounded-md text-sm font-medium text-[#D8DBF0] hover:bg-[#2D3561] hover:text-white transition">
+                            <i class="fas fa-file-code mr-2"></i>Configs
+                        </a>
+                    </div>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <button onclick="location.reload()" class="px-4 py-2 bg-[#2D3561] hover:bg-[#4A5080] rounded-lg text-sm flex items-center space-x-2 transition">
+                        <i class="fas fa-sync-alt"></i>
+                        <span>Refresh</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <!-- Page Header -->
+        <div class="mb-8">
+            <h1 class="text-4xl font-bold mb-2">Training Runs</h1>
+            <p class="text-gray-400">All your training runs with shareable URLs</p>
+        </div>
+
+        <!-- Flash Messages -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                <div class="mb-6 p-4 rounded-lg border {% if category == 'success' %}bg-green-500/10 border-green-500/50 text-green-400{% elif category == 'error' %}bg-red-500/10 border-red-500/50 text-red-400{% else %}bg-blue-500/10 border-blue-500/50 text-blue-400{% endif %}">
+                    {{ message }}
+                </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <!-- Runs List -->
+        {% if not runs %}
+            <div class="bg-gray-800/30 backdrop-blur-lg rounded-xl border border-gray-700 p-12 text-center">
+                <i class="fas fa-clipboard-list text-6xl text-gray-600 mb-4"></i>
+                <h3 class="text-xl font-semibold text-gray-400 mb-2">No training runs yet</h3>
+                <p class="text-gray-500">Start a training job from a queue or config to see it here.</p>
+                <a href="{{ url_for('index') }}" class="mt-4 inline-block px-6 py-3 bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 rounded-lg font-medium transition">
+                    <i class="fas fa-arrow-left mr-2"></i>Back to Queues
+                </a>
+            </div>
+        {% else %}
+            <!-- Stats Summary -->
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                {% set running_count = runs | selectattr('status', 'equalto', 'running') | list | length %}
+                {% set completed_count = runs | selectattr('status', 'equalto', 'completed') | list | length %}
+                {% set failed_count = runs | selectattr('status', 'in', ['failed', 'error']) | list | length %}
+
+                <div class="bg-gray-800/50 backdrop-blur-lg rounded-lg border border-gray-700 p-4">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-gray-400 text-sm">Total Runs</p>
+                            <p class="text-2xl font-bold">{{ runs | length }}</p>
+                        </div>
+                        <i class="fas fa-layer-group text-3xl text-gray-600"></i>
+                    </div>
+                </div>
+
+                <div class="bg-gray-800/50 backdrop-blur-lg rounded-lg border border-green-500/30 p-4">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-gray-400 text-sm">Running</p>
+                            <p class="text-2xl font-bold text-green-400">{{ running_count }}</p>
+                        </div>
+                        <i class="fas fa-spinner fa-pulse text-3xl text-green-600"></i>
+                    </div>
+                </div>
+
+                <div class="bg-gray-800/50 backdrop-blur-lg rounded-lg border border-blue-500/30 p-4">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-gray-400 text-sm">Completed</p>
+                            <p class="text-2xl font-bold text-blue-400">{{ completed_count }}</p>
+                        </div>
+                        <i class="fas fa-check-circle text-3xl text-blue-600"></i>
+                    </div>
+                </div>
+
+                <div class="bg-gray-800/50 backdrop-blur-lg rounded-lg border border-red-500/30 p-4">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-gray-400 text-sm">Failed</p>
+                            <p class="text-2xl font-bold text-red-400">{{ failed_count }}</p>
+                        </div>
+                        <i class="fas fa-times-circle text-3xl text-red-600"></i>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Runs Table -->
+            <div class="bg-gray-800/50 backdrop-blur-lg rounded-xl border border-gray-700 overflow-hidden">
+                <table class="w-full">
+                    <thead class="bg-gray-900/50 border-b border-gray-700">
+                        <tr>
+                            <th class="px-6 py-4 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Run ID</th>
+                            <th class="px-6 py-4 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Status</th>
+                            <th class="px-6 py-4 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Config</th>
+                            <th class="px-6 py-4 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Started</th>
+                            <th class="px-6 py-4 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-700">
+                        {% for run in runs %}
+                        <tr class="hover:bg-gray-800/30 transition cursor-pointer" onclick="window.location.href='{{ url_for('run_details', run_id=run.id) }}'">
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <div class="flex items-center">
+                                    <div class="w-10 h-10
+                                        {% if run.status == 'running' %}bg-gradient-to-br from-green-500 to-emerald-600{% elif run.status == 'completed' %}bg-gradient-to-br from-blue-500 to-cyan-600{% elif run.status in ['failed', 'error'] %}bg-gradient-to-br from-red-500 to-pink-600{% else %}bg-gradient-to-br from-yellow-500 to-orange-600{% endif %}
+                                        rounded-lg flex items-center justify-center mr-3">
+                                        <i class="fas
+                                            {% if run.status == 'running' %}fa-spinner fa-spin{% elif run.status == 'completed' %}fa-check{% elif run.status in ['failed', 'error'] %}fa-times{% else %}fa-clock{% endif %}
+                                            text-white"></i>
+                                    </div>
+                                    <div>
+                                        <p class="font-mono text-sm font-medium">{{ run.id }}</p>
+                                        <p class="text-xs text-gray-500">
+                                            <i class="fas fa-link mr-1"></i>/run/{{ run.id }}
+                                        </p>
+                                    </div>
+                                </div>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <span class="px-3 py-1 rounded-full font-medium text-xs
+                                    {% if run.status == 'running' %}bg-green-500/20 border border-green-500/50 text-green-400 pulse-slow{% elif run.status == 'completed' %}bg-blue-500/20 border border-blue-500/50 text-blue-400{% elif run.status in ['failed', 'error'] %}bg-red-500/20 border border-red-500/50 text-red-400{% else %}bg-yellow-500/20 border border-yellow-500/50 text-yellow-400{% endif %}">
+                                    {{ run.status | title }}
+                                </span>
+                            </td>
+                            <td class="px-6 py-4">
+                                <code class="text-sm text-gray-400 bg-gray-900/50 px-2 py-1 rounded">{{ run.config_path | basename }}</code>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-400">
+                                <i class="fas fa-clock mr-2"></i>
+                                <span id="time-{{ run.id }}">{{ ((now - run.started_at) | int) if now else 0 }}s ago</span>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium" onclick="event.stopPropagation()">
+                                <a href="{{ url_for('run_details', run_id=run.id) }}" class="text-blue-400 hover:text-blue-300 mr-4">
+                                    <i class="fas fa-eye mr-1"></i>View
+                                </a>
+                                <button onclick="copyRunUrl('{{ run.id }}')" class="text-purple-400 hover:text-purple-300">
+                                    <i class="fas fa-share-alt mr-1"></i>Share
+                                </button>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% endif %}
+    </div>
+
+    <script>
+        function copyRunUrl(runId) {
+            const url = window.location.origin + '/run/' + runId;
+            navigator.clipboard.writeText(url).then(() => {
+                alert('Run URL copied to clipboard:\n' + url);
+            });
+        }
+
+        // Auto-refresh every 5 seconds if there are running jobs
+        {% if runs | selectattr('status', 'equalto', 'running') | list | length > 0 %}
+        setTimeout(() => location.reload(), 5000);
+        {% endif %}
+
+        // Update relative times
+        function updateTimes() {
+            {% for run in runs %}
+            const startTime{{ loop.index }} = {{ run.started_at }};
+            const elapsed{{ loop.index }} = Math.floor(Date.now() / 1000 - startTime{{ loop.index }});
+            const timeEl{{ loop.index }} = document.getElementById('time-{{ run.id }}');
+            if (timeEl{{ loop.index }}) {
+                if (elapsed{{ loop.index }} < 60) {
+                    timeEl{{ loop.index }}.textContent = elapsed{{ loop.index }} + 's ago';
+                } else if (elapsed{{ loop.index }} < 3600) {
+                    timeEl{{ loop.index }}.textContent = Math.floor(elapsed{{ loop.index }} / 60) + 'm ago';
+                } else {
+                    timeEl{{ loop.index }}.textContent = Math.floor(elapsed{{ loop.index }} / 3600) + 'h ago';
+                }
+            }
+            {% endfor %}
+        }
+
+        updateTimes();
+        setInterval(updateTimes, 1000);
+    </script>
+</body>
+</html>

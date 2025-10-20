@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Run {{ job_id }} - Late Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        @keyframes pulse-slow {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        .pulse-slow {
+            animation: pulse-slow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        .log-container {
+            max-height: 500px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 0.85rem;
+        }
+        .log-container::-webkit-scrollbar {
+            width: 8px;
+        }
+        .log-container::-webkit-scrollbar-track {
+            background: #1a1a2e;
+        }
+        .log-container::-webkit-scrollbar-thumb {
+            background: #4A5080;
+            border-radius: 4px;
+        }
+        .log-container::-webkit-scrollbar-thumb:hover {
+            background: #D8DBF0;
+        }
+    </style>
+</head>
+<body class="bg-black min-h-screen text-white">
+    <!-- Navigation -->
+    <nav class="bg-[#1a1a2e]/90 backdrop-blur-lg border-b border-[#2D3561] sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16">
+                <div class="flex items-center space-x-8">
+                    <div class="flex items-center space-x-3">
+                        <img src="{{ url_for('static', filename='late-logo.png') }}" alt="Late Logo" class="w-10 h-10 rounded-full">
+                        <span class="text-2xl font-bold bg-gradient-to-r from-[#D8DBF0] to-white bg-clip-text text-transparent">Late Training</span>
+                    </div>
+                    <div class="hidden md:flex space-x-4">
+                        <a href="{{ url_for('index') }}" class="px-3 py-2 rounded-md text-sm font-medium text-[#D8DBF0] hover:bg-[#2D3561] hover:text-white transition">
+                            <i class="fas fa-list mr-2"></i>Queues
+                        </a>
+                        <a href="{{ url_for('jobs') }}" class="px-3 py-2 rounded-md text-sm font-medium text-[#D8DBF0] hover:bg-[#2D3561] hover:text-white transition">
+                            <i class="fas fa-tasks mr-2"></i>Runs
+                        </a>
+                        <a href="{{ url_for('configs') }}" class="px-3 py-2 rounded-md text-sm font-medium text-[#D8DBF0] hover:bg-[#2D3561] hover:text-white transition">
+                            <i class="fas fa-file-code mr-2"></i>Configs
+                        </a>
+                    </div>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <button onclick="copyRunUrl()" class="px-4 py-2 bg-purple-500/20 hover:bg-purple-500/30 border border-purple-500/50 text-purple-400 rounded-lg text-sm flex items-center space-x-2 transition">
+                        <i class="fas fa-share-alt"></i>
+                        <span>Share URL</span>
+                    </button>
+                    <button onclick="location.reload()" class="px-4 py-2 bg-[#2D3561] hover:bg-[#4A5080] rounded-lg text-sm flex items-center space-x-2 transition">
+                        <i class="fas fa-sync-alt"></i>
+                        <span>Refresh</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <!-- Page Header -->
+        <div class="mb-6">
+            <div class="flex items-center space-x-2 text-sm text-gray-400 mb-2">
+                <a href="{{ url_for('jobs') }}" class="hover:text-white transition"><i class="fas fa-arrow-left mr-1"></i>All Runs</a>
+                <span>/</span>
+                <span>{{ job_id }}</span>
+            </div>
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-4">
+                    <div class="w-16 h-16
+                        {% if job.status == 'running' %}bg-gradient-to-br from-green-500 to-emerald-600{% elif job.status == 'completed' %}bg-gradient-to-br from-blue-500 to-cyan-600{% elif job.status in ['failed', 'error'] %}bg-gradient-to-br from-red-500 to-pink-600{% else %}bg-gradient-to-br from-yellow-500 to-orange-600{% endif %}
+                        rounded-xl flex items-center justify-center">
+                        <i class="fas
+                            {% if job.status == 'running' %}fa-spinner fa-spin{% elif job.status == 'completed' %}fa-check{% elif job.status in ['failed', 'error'] %}fa-times{% else %}fa-clock{% endif %}
+                            text-3xl"></i>
+                    </div>
+                    <div>
+                        <h1 class="text-3xl font-bold">{{ job_id }}</h1>
+                        <span class="inline-block mt-2 px-4 py-2 rounded-lg font-medium text-sm
+                            {% if job.status == 'running' %}bg-green-500/20 border border-green-500/50 text-green-400 pulse-slow{% elif job.status == 'completed' %}bg-blue-500/20 border border-blue-500/50 text-blue-400{% elif job.status in ['failed', 'error'] %}bg-red-500/20 border border-red-500/50 text-red-400{% else %}bg-yellow-500/20 border border-yellow-500/50 text-yellow-400{% endif %}">
+                            {% if job.status == 'running' %}
+                                <i class="fas fa-circle-notch fa-spin mr-2"></i>Running
+                            {% elif job.status == 'completed' %}
+                                <i class="fas fa-check-circle mr-2"></i>Completed
+                            {% elif job.status == 'failed' %}
+                                <i class="fas fa-exclamation-circle mr-2"></i>Failed
+                            {% elif job.status == 'error' %}
+                                <i class="fas fa-times-circle mr-2"></i>Error
+                            {% else %}
+                                <i class="fas fa-hourglass-half mr-2"></i>{{ job.status|title }}
+                            {% endif %}
+                        </span>
+                    </div>
+                </div>
+                {% if job.status == 'running' %}
+                <button onclick="stopJob()"
+                        class="px-6 py-3 bg-red-500/20 hover:bg-red-500/30 border border-red-500/50 text-red-400 rounded-lg font-medium transition flex items-center space-x-2">
+                    <i class="fas fa-stop"></i>
+                    <span>Stop Training</span>
+                </button>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Stats Grid -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            <div class="bg-gray-900/50 rounded-lg p-4 border border-gray-700">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-gray-400 text-sm">Started</p>
+                        <p class="text-lg font-bold">
+                            <span id="job-time">{{ ((now - job.started_at) | int) if now else 0 }}</span>s ago
+                        </p>
+                    </div>
+                    <i class="fas fa-clock text-2xl text-gray-600"></i>
+                </div>
+            </div>
+
+            <div class="bg-gray-900/50 rounded-lg p-4 border border-gray-700">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-gray-400 text-sm">Log Lines</p>
+                        <p class="text-lg font-bold">{{ job.log|length }}</p>
+                    </div>
+                    <i class="fas fa-file-alt text-2xl text-gray-600"></i>
+                </div>
+            </div>
+
+            <div class="bg-gray-900/50 rounded-lg p-4 border border-gray-700">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-gray-400 text-sm">Current Loss</p>
+                        <p class="text-lg font-bold text-blue-400" id="current-loss">
+                            Detecting...
+                        </p>
+                    </div>
+                    <i class="fas fa-chart-line text-2xl text-gray-600"></i>
+                </div>
+            </div>
+        </div>
+
+        <!-- Error Display (if error exists) -->
+        {% if job.status == 'error' and job.error %}
+        <div class="bg-red-500/10 border-l-4 border-red-500 p-4 rounded-r-lg mb-6">
+            <div class="flex items-center space-x-3 mb-2">
+                <i class="fas fa-exclamation-triangle text-red-400"></i>
+                <h4 class="font-bold text-red-400">Error Occurred</h4>
+            </div>
+            <pre class="text-sm text-red-300 font-mono overflow-x-auto">{{ job.error }}</pre>
+        </div>
+        {% endif %}
+
+        <!-- Tabs -->
+        <div class="mb-4">
+            <div class="border-b border-gray-700">
+                <nav class="-mb-px flex space-x-4">
+                    <button onclick="switchTab('logs')"
+                            class="tab tab-logs border-b-2 border-blue-500 py-2 px-4 text-sm font-medium text-blue-400 transition">
+                        <i class="fas fa-terminal mr-2"></i>Logs
+                    </button>
+                    <button onclick="switchTab('loss')"
+                            class="tab tab-loss border-b-2 border-transparent py-2 px-4 text-sm font-medium text-gray-400 hover:text-gray-300 hover:border-gray-300 transition">
+                        <i class="fas fa-chart-area mr-2"></i>Loss Chart
+                    </button>
+                    <button onclick="switchTab('config')"
+                            class="tab tab-config border-b-2 border-transparent py-2 px-4 text-sm font-medium text-gray-400 hover:text-gray-300 hover:border-gray-300 transition">
+                        <i class="fas fa-cog mr-2"></i>Configuration
+                    </button>
+                </nav>
+            </div>
+        </div>
+
+        <!-- Tab Content: Logs -->
+        <div id="content-logs" class="tab-content">
+            <div class="bg-gray-900 rounded-lg border border-gray-700 p-4 log-container">
+                <div id="log-output">
+                    {% if job.log %}
+                        {% for line in job.log %}
+                        <div class="{% if 'ERROR' in line or 'Error' in line %}text-red-400{% elif 'WARNING' in line or 'Warning' in line %}text-yellow-400{% elif 'loss' in line.lower() %}text-blue-400{% else %}text-gray-300{% endif %} mb-1">{{ line }}</div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="text-gray-500 text-center py-8">No logs yet...</div>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="mt-3 flex items-center justify-between">
+                <label class="flex items-center space-x-2 text-sm text-gray-400">
+                    <input type="checkbox" id="autoscroll" checked
+                           class="rounded bg-gray-700 border-gray-600 text-blue-500 focus:ring-blue-500">
+                    <span>Auto-scroll to bottom</span>
+                </label>
+                <button onclick="downloadLogs()"
+                        class="px-3 py-1 bg-gray-700 hover:bg-gray-600 rounded text-sm flex items-center space-x-2 transition">
+                    <i class="fas fa-download"></i>
+                    <span>Download Logs</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Tab Content: Loss Chart -->
+        <div id="content-loss" class="tab-content hidden">
+            <div class="bg-gray-900 rounded-lg border border-gray-700 p-4" style="height: 400px;">
+                <canvas id="loss-chart"></canvas>
+            </div>
+        </div>
+
+        <!-- Tab Content: Config -->
+        <div id="content-config" class="tab-content hidden">
+            <div class="bg-gray-900 rounded-lg border border-gray-700 p-6">
+                {% if config_with_defaults %}
+                <div class="space-y-6">
+                    <!-- Required Settings -->
+                    <div>
+                        <h3 class="text-lg font-bold mb-4 flex items-center">
+                            <i class="fas fa-database text-purple-400 mr-3"></i>
+                            Model & Dataset
+                        </h3>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {% for key in ['base_model', 'dataset_name', 'output_model_name', 'output_dir'] %}
+                            {% if config_with_defaults[key] %}
+                            <div class="bg-gray-800/50 rounded-lg p-4 border {% if config_with_defaults[key].is_default %}border-gray-700{% else %}border-blue-500/30{% endif %}">
+                                <div class="flex items-center justify-between mb-2">
+                                    <span class="text-sm text-gray-400">{{ key | replace('_', ' ') | title }}</span>
+                                    {% if config_with_defaults[key].is_default %}
+                                    <span class="text-xs px-2 py-1 bg-gray-700 rounded text-gray-400">DEFAULT</span>
+                                    {% else %}
+                                    <span class="text-xs px-2 py-1 bg-blue-500/20 border border-blue-500/50 rounded text-blue-400">CUSTOM</span>
+                                    {% endif %}
+                                </div>
+                                <p class="text-white font-mono text-sm">{{ config_with_defaults[key].value }}</p>
+                            </div>
+                            {% endif %}
+                            {% endfor %}
+                        </div>
+                    </div>
+
+                    <!-- Training Configuration -->
+                    <div>
+                        <h3 class="text-lg font-bold mb-4 flex items-center">
+                            <i class="fas fa-cog text-green-400 mr-3"></i>
+                            Training Settings
+                        </h3>
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            {% for key in ['training_type', 'max_seq_length', 'loss_masking_strategy', 'use_unsloth'] %}
+                            {% if config_with_defaults[key] %}
+                            <div class="bg-gray-800/50 rounded-lg p-4 border {% if config_with_defaults[key].is_default %}border-gray-700{% else %}border-blue-500/30{% endif %}">
+                                <div class="flex items-center justify-between mb-2">
+                                    <span class="text-sm text-gray-400">{{ key | replace('_', ' ') | title }}</span>
+                                    {% if config_with_defaults[key].is_default %}
+                                    <span class="text-xs px-2 py-1 bg-gray-700 rounded text-gray-400">DEFAULT</span>
+                                    {% else %}
+                                    <span class="text-xs px-2 py-1 bg-blue-500/20 border border-blue-500/50 rounded text-blue-400">CUSTOM</span>
+                                    {% endif %}
+                                </div>
+                                <p class="text-white font-mono text-sm">{{ config_with_defaults[key].value }}</p>
+                            </div>
+                            {% endif %}
+                            {% endfor %}
+                        </div>
+                    </div>
+
+                    <!-- Hyperparameters -->
+                    <div>
+                        <h3 class="text-lg font-bold mb-4 flex items-center">
+                            <i class="fas fa-sliders-h text-yellow-400 mr-3"></i>
+                            Hyperparameters
+                        </h3>
+                        <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                            {% for key in ['batch_size', 'gradient_accumulation', 'epochs', 'learning_rate', 'lr_scheduler_type', 'optim', 'save_steps'] %}
+                            {% if config_with_defaults[key] %}
+                            <div class="bg-gray-800/50 rounded-lg p-4 border {% if config_with_defaults[key].is_default %}border-gray-700{% else %}border-blue-500/30{% endif %}">
+                                <div class="flex items-center justify-between mb-2">
+                                    <span class="text-sm text-gray-400">{{ key | replace('_', ' ') | title }}</span>
+                                    {% if config_with_defaults[key].is_default %}
+                                    <span class="text-xs px-2 py-1 bg-gray-700 rounded text-gray-400">DEFAULT</span>
+                                    {% else %}
+                                    <span class="text-xs px-2 py-1 bg-blue-500/20 border border-blue-500/50 rounded text-blue-400">CUSTOM</span>
+                                    {% endif %}
+                                </div>
+                                <p class="text-white font-mono text-sm">{{ config_with_defaults[key].value }}</p>
+                            </div>
+                            {% endif %}
+                            {% endfor %}
+                        </div>
+                    </div>
+
+                    <!-- LoRA Configuration -->
+                    {% if config_with_defaults['lora'] %}
+                    <div>
+                        <h3 class="text-lg font-bold mb-4 flex items-center">
+                            <i class="fas fa-layer-group text-pink-400 mr-3"></i>
+                            LoRA Configuration
+                        </h3>
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            {% set lora = config_with_defaults['lora'].value %}
+                            {% for key, value in lora.items() %}
+                            <div class="bg-gray-800/50 rounded-lg p-4 border border-gray-700">
+                                <div class="flex items-center justify-between mb-2">
+                                    <span class="text-sm text-gray-400">{{ key | replace('_', ' ') | title }}</span>
+                                </div>
+                                <p class="text-white font-mono text-sm">{{ value }}</p>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <!-- Memory Optimization -->
+                    <div>
+                        <h3 class="text-lg font-bold mb-4 flex items-center">
+                            <i class="fas fa-memory text-cyan-400 mr-3"></i>
+                            Memory Optimization
+                        </h3>
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            {% for key in ['gradient_checkpointing', 'torch_compile', 'tf32'] %}
+                            {% if config_with_defaults[key] %}
+                            <div class="bg-gray-800/50 rounded-lg p-4 border {% if config_with_defaults[key].is_default %}border-gray-700{% else %}border-blue-500/30{% endif %}">
+                                <div class="flex items-center justify-between mb-2">
+                                    <span class="text-sm text-gray-400">{{ key | replace('_', ' ') | title }}</span>
+                                    {% if config_with_defaults[key].is_default %}
+                                    <span class="text-xs px-2 py-1 bg-gray-700 rounded text-gray-400">DEFAULT</span>
+                                    {% else %}
+                                    <span class="text-xs px-2 py-1 bg-blue-500/20 border border-blue-500/50 rounded text-blue-400">CUSTOM</span>
+                                    {% endif %}
+                                </div>
+                                <p class="text-white font-mono text-sm">
+                                    {% if config_with_defaults[key].value %}
+                                    <span class="text-green-400"><i class="fas fa-check-circle mr-1"></i>Enabled</span>
+                                    {% else %}
+                                    <span class="text-red-400"><i class="fas fa-times-circle mr-1"></i>Disabled</span>
+                                    {% endif %}
+                                </p>
+                            </div>
+                            {% endif %}
+                            {% endfor %}
+                        </div>
+                    </div>
+
+                    <!-- File Paths -->
+                    <div>
+                        <h3 class="text-lg font-bold mb-4 flex items-center">
+                            <i class="fas fa-folder text-orange-400 mr-3"></i>
+                            File Paths
+                        </h3>
+                        <div class="space-y-3">
+                            <div class="bg-gray-800/50 rounded-lg p-4 border border-gray-700">
+                                <p class="text-sm text-gray-400 mb-2">Config File</p>
+                                <code class="text-sm text-blue-400">{{ job.config_path }}</code>
+                            </div>
+                            <div class="bg-gray-800/50 rounded-lg p-4 border border-gray-700">
+                                <p class="text-sm text-gray-400 mb-2">Training Script</p>
+                                <code class="text-sm text-purple-400">{{ job.script_path }}</code>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% else %}
+                <p class="text-gray-400">Config file not found or could not be loaded.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Initialize loss chart -->
+    <script>
+        const lossData = {
+            labels: [],
+            datasets: [{
+                label: 'Training Loss',
+                data: [],
+                borderColor: 'rgb(59, 130, 246)',
+                backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                tension: 0.4
+            }]
+        };
+
+        const lossChart = new Chart(
+            document.getElementById('loss-chart'),
+            {
+                type: 'line',
+                data: lossData,
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    plugins: {
+                        legend: { labels: { color: 'rgb(156, 163, 175)' } }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: false,
+                            ticks: { color: 'rgb(156, 163, 175)' },
+                            grid: { color: 'rgba(156, 163, 175, 0.1)' }
+                        },
+                        x: {
+                            ticks: { color: 'rgb(156, 163, 175)' },
+                            grid: { color: 'rgba(156, 163, 175, 0.1)' }
+                        }
+                    }
+                }
+            }
+        );
+    </script>
+
+    <!-- JavaScript for tabs and live updates -->
+    <script>
+        function switchTab(tabName) {
+            // Hide all tab contents
+            document.querySelectorAll('.tab-content').forEach(el => {
+                el.classList.add('hidden');
+            });
+
+            // Remove active state from all tabs
+            document.querySelectorAll('.tab').forEach(el => {
+                el.classList.remove('border-blue-500', 'text-blue-400');
+                el.classList.add('border-transparent', 'text-gray-400');
+            });
+
+            // Show selected tab content
+            document.getElementById('content-' + tabName).classList.remove('hidden');
+
+            // Add active state to selected tab
+            const activeTab = document.querySelector('.tab-' + tabName);
+            activeTab.classList.add('border-blue-500', 'text-blue-400');
+            activeTab.classList.remove('border-transparent', 'text-gray-400');
+        }
+
+        function stopJob() {
+            if (confirm('Are you sure you want to stop this training job?')) {
+                fetch(`/api/job/{{ job_id }}/stop`, { method: 'POST' })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            location.reload();
+                        } else {
+                            alert('Error: ' + data.error);
+                        }
+                    });
+            }
+        }
+
+        function downloadLogs() {
+            const logContent = document.getElementById('log-output').innerText;
+            const blob = new Blob([logContent], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `{{ job_id }}_logs.txt`;
+            a.click();
+        }
+
+        function copyRunUrl() {
+            const url = window.location.href;
+            navigator.clipboard.writeText(url).then(() => {
+                alert('Run URL copied to clipboard:\n' + url);
+            });
+        }
+
+        // Auto-update logs every 2 seconds if job is running
+        {% if job.status == 'running' %}
+        setInterval(() => {
+            fetch('/api/job/{{ job_id }}')
+                .then(response => response.json())
+                .then(data => {
+                    // Update logs
+                    const logContainer = document.getElementById('log-output');
+                    logContainer.innerHTML = '';
+                    data.log.forEach(line => {
+                        const div = document.createElement('div');
+                        if (line.includes('ERROR') || line.includes('Error')) {
+                            div.className = 'text-red-400 mb-1';
+                        } else if (line.includes('WARNING') || line.includes('Warning')) {
+                            div.className = 'text-yellow-400 mb-1';
+                        } else if (line.toLowerCase().includes('loss')) {
+                            div.className = 'text-blue-400 mb-1';
+                        } else {
+                            div.className = 'text-gray-300 mb-1';
+                        }
+                        div.textContent = line;
+                        logContainer.appendChild(div);
+
+                        // Extract loss values for chart - handle multiple formats
+                        const lossMatch = line.match(/(?:['"]?loss['"]?\s*[:=]\s*)([\d.]+)/i);
+                        if (lossMatch) {
+                            const loss = parseFloat(lossMatch[1]);
+                            lossChart.data.labels.push(lossChart.data.labels.length + 1);
+                            lossChart.data.datasets[0].data.push(loss);
+                            if (lossChart.data.labels.length > 100) {
+                                lossChart.data.labels.shift();
+                                lossChart.data.datasets[0].data.shift();
+                            }
+                            lossChart.update('none');
+
+                            // Update current loss display
+                            document.getElementById('current-loss').textContent = loss.toFixed(4);
+                        }
+                    });
+
+                    // Auto-scroll if enabled
+                    if (document.getElementById('autoscroll').checked) {
+                        logContainer.parentElement.scrollTop = logContainer.parentElement.scrollHeight;
+                    }
+
+                    // Update time
+                    const startTime = data.started_at;
+                    const elapsed = Math.floor(Date.now() / 1000 - startTime);
+                    document.getElementById('job-time').textContent = elapsed;
+                });
+        }, 2000);
+        {% endif %}
+    </script>
+</body>
+</html>

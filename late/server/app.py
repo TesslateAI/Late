@@ -6,14 +6,145 @@ import yaml
 import subprocess
 import threading
 import time
+import json
 from pathlib import Path
+from datetime import datetime
 
 app = Flask(__name__)
 app.secret_key = os.urandom(24) # Needed for flashing messages
 qm = QueueManager()
 
+# Directory to persist run data
+RUNS_DIR = Path.cwd() / "training_runs"
+RUNS_DIR.mkdir(exist_ok=True)
+RUNS_INDEX_FILE = RUNS_DIR / ".runs_index.json"
+
 # Store running jobs (in-memory, will reset on server restart)
 running_jobs = {}
+
+# Default configuration values
+DEFAULT_CONFIG = {
+    'output_dir': './outputs/',
+    'training_type': 'lora',
+    'max_seq_length': 2048,
+    'loss_masking_strategy': 'full',
+    'batch_size': 4,
+    'gradient_accumulation': 4,
+    'epochs': 3,
+    'learning_rate': 2e-4,
+    'lr_scheduler_type': 'cosine',
+    'optim': 'adamw_torch_fused',
+    'save_steps': 100,
+    'gradient_checkpointing': True,
+    'torch_compile': True,
+    'tf32': True,
+    'cache_dir': '~/.cache/late/models',
+    'report_to_wandb': False,
+    'upload_to_hub': False,
+    'use_unsloth': False,
+    'lora': {
+        'r': 64,
+        'lora_alpha': 128,
+        'lora_dropout': 0.05,
+        'target_modules': ['q_proj', 'k_proj', 'v_proj', 'o_proj', 'gate_proj', 'up_proj', 'down_proj']
+    }
+}
+
+def load_runs_index():
+    """Load the runs index from disk"""
+    if RUNS_INDEX_FILE.exists():
+        with open(RUNS_INDEX_FILE, 'r') as f:
+            return json.load(f)
+    return {}
+
+def save_runs_index(runs_index):
+    """Save the runs index to disk"""
+    with open(RUNS_INDEX_FILE, 'w') as f:
+        json.dump(runs_index, f, indent=2)
+
+def save_run_data(run_id, run_data):
+    """Save run data to a JSON file"""
+    run_file = RUNS_DIR / f"{run_id}.json"
+    # Convert log list to avoid huge files - keep last 1000 lines
+    data_to_save = run_data.copy()
+    if 'log' in data_to_save and len(data_to_save['log']) > 1000:
+        data_to_save['log'] = data_to_save['log'][-1000:]
+    # Remove process object
+    if 'process' in data_to_save:
+        del data_to_save['process']
+
+    with open(run_file, 'w') as f:
+        json.dump(data_to_save, f, indent=2)
+
+    # Update index
+    runs_index = load_runs_index()
+    runs_index[run_id] = {
+        'started_at': run_data.get('started_at'),
+        'status': run_data.get('status'),
+        'config_path': run_data.get('config_path'),
+        'last_updated': time.time()
+    }
+    save_runs_index(runs_index)
+
+def load_run_data(run_id):
+    """Load run data from disk"""
+    run_file = RUNS_DIR / f"{run_id}.json"
+    if run_file.exists():
+        with open(run_file, 'r') as f:
+            return json.load(f)
+    return None
+
+def get_config_with_defaults(config_path):
+    """Load config and mark which values are defaults"""
+    with open(config_path, 'r', encoding='utf-8') as f:
+        user_config = yaml.safe_load(f) or {}
+
+    config_with_defaults = {}
+
+    for key, default_value in DEFAULT_CONFIG.items():
+        if key in user_config:
+            if isinstance(default_value, dict):
+                # Handle nested configs like lora
+                config_with_defaults[key] = {
+                    'value': user_config[key],
+                    'is_default': user_config[key] == default_value,
+                    'default': default_value
+                }
+            else:
+                config_with_defaults[key] = {
+                    'value': user_config[key],
+                    'is_default': user_config[key] == default_value,
+                    'default': default_value
+                }
+        else:
+            config_with_defaults[key] = {
+                'value': default_value,
+                'is_default': True,
+                'default': default_value
+            }
+
+    # Add any additional keys from user config that aren't in defaults
+    for key, value in user_config.items():
+        if key not in config_with_defaults:
+            config_with_defaults[key] = {
+                'value': value,
+                'is_default': False,
+                'default': None
+            }
+
+    return config_with_defaults
+
+# Load existing runs on startup
+def init_runs():
+    """Initialize runs from disk"""
+    global running_jobs
+    runs_index = load_runs_index()
+    for run_id, run_info in runs_index.items():
+        run_data = load_run_data(run_id)
+        if run_data:
+            running_jobs[run_id] = run_data
+
+init_runs()
 
 # Lazy import for training script generation (requires torch)
 def get_training_script_generator():
@@ -73,6 +204,9 @@ def create_config():
     # Training type
     config['training_type'] = request.form.get('training_type', 'lora')
     config['max_seq_length'] = int(request.form.get('max_seq_length', 2048))
+
+    # Unsloth acceleration
+    config['use_unsloth'] = request.form.get('use_unsloth') == 'on'
 
     # Loss masking
     config['loss_masking_strategy'] = request.form.get('loss_masking_strategy', 'full')
@@ -202,18 +336,27 @@ def start_training():
 
             running_jobs[job_id]['process'] = process
             running_jobs[job_id]['status'] = 'running'
+            save_run_data(job_id, running_jobs[job_id])
 
-            # Stream output
+            # Stream output and save periodically
+            line_count = 0
             for line in process.stdout:
                 running_jobs[job_id]['log'].append(line.rstrip())
+                line_count += 1
+
+                # Save every 50 lines
+                if line_count % 50 == 0:
+                    save_run_data(job_id, running_jobs[job_id])
 
             process.wait()
             running_jobs[job_id]['status'] = 'completed' if process.returncode == 0 else 'failed'
             running_jobs[job_id]['return_code'] = process.returncode
+            save_run_data(job_id, running_jobs[job_id])
 
         except Exception as e:
             running_jobs[job_id]['status'] = 'error'
             running_jobs[job_id]['error'] = str(e)
+            save_run_data(job_id, running_jobs[job_id])
 
     # Initialize job tracking
     running_jobs[job_id] = {
@@ -224,25 +367,79 @@ def start_training():
         'started_at': time.time()
     }
 
+    # Save initial run data
+    save_run_data(job_id, running_jobs[job_id])
+
     # Start background thread
     thread = threading.Thread(target=run_training, daemon=True)
     thread.start()
 
-    flash(f"Training job '{job_id}' started! Check the Jobs tab for status.", "success")
-    return redirect(url_for('jobs'))
+    flash(f"Training job '{job_id}' started! View at /run/{job_id}", "success")
+    return redirect(url_for('run_details', run_id=job_id))
 
 @app.route('/jobs')
 def jobs():
-    """Show all running and completed jobs"""
-    return render_template('jobs.html', jobs=running_jobs)
+    """Show list of all training runs"""
+    runs_index = load_runs_index()
+
+    # Convert to list and sort by start time (newest first)
+    runs_list = []
+    for run_id, run_info in runs_index.items():
+        # Get live status from running_jobs if available
+        if run_id in running_jobs:
+            status = running_jobs[run_id]['status']
+        else:
+            status = run_info['status']
+
+        runs_list.append({
+            'id': run_id,
+            'status': status,
+            'config_path': run_info['config_path'],
+            'started_at': run_info['started_at'],
+            'last_updated': run_info.get('last_updated', run_info['started_at'])
+        })
+
+    runs_list.sort(key=lambda x: x['started_at'], reverse=True)
+
+    return render_template('jobs_list.html', runs=runs_list, now=time.time())
+
+@app.route('/run/<run_id>')
+def run_details(run_id):
+    """Show detailed view of a single training run"""
+    # Try to get from memory first, then disk
+    if run_id in running_jobs:
+        job = running_jobs[run_id]
+    else:
+        job = load_run_data(run_id)
+        if not job:
+            flash(f"Run '{run_id}' not found", "error")
+            return redirect(url_for('jobs'))
+
+    # Load config with defaults
+    config_with_defaults = None
+    if os.path.exists(job['config_path']):
+        try:
+            config_with_defaults = get_config_with_defaults(job['config_path'])
+        except Exception as e:
+            flash(f"Error loading config: {e}", "error")
+
+    return render_template('run_details.html',
+                         job_id=run_id,
+                         job=job,
+                         config_with_defaults=config_with_defaults,
+                         now=time.time())
 
 @app.route('/api/job/<job_id>')
 def get_job_status(job_id):
     """API endpoint to get job status (for live updates)"""
     if job_id not in running_jobs:
-        return jsonify({'error': 'Job not found'}), 404
+        # Try loading from disk
+        job = load_run_data(job_id)
+        if not job:
+            return jsonify({'error': 'Job not found'}), 404
+    else:
+        job = running_jobs[job_id]
 
-    job = running_jobs[job_id]
     return jsonify({
         'id': job_id,
         'status': job['status'],
