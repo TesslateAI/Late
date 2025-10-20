@@ -8,10 +8,35 @@ from late.engine.config import save_token
 
 qm = QueueManager()
 
-@click.group()
-def cli():
+PURPLE = '\033[95m'
+RESET = '\033[0m'
+GRAY = '\033[90m'
+
+BANNER = f"""{PURPLE}
+██╗      █████╗ ████████╗███████╗
+██║     ██╔══██╗╚══██╔══╝██╔════╝
+██║     ███████║   ██║   █████╗
+██║     ██╔══██║   ██║   ██╔══╝
+███████╗██║  ██║   ██║   ███████╗
+╚══════╝╚═╝  ╚═╝   ╚═╝   ╚══════╝
+{RESET}{GRAY}A powerful toolkit for streamlining and scheduling ML training workflows.{RESET}
+"""
+
+@click.group(invoke_without_command=True)
+@click.pass_context
+def cli(ctx):
     """Late: A toolkit for patching, scheduling, and running training jobs on ROCm."""
-    pass
+    if ctx.invoked_subcommand is None:
+        click.echo(BANNER)
+        click.echo(ctx.get_help())
+    else:
+        click.echo(BANNER)
+
+@cli.command()
+def version():
+    """Show the version of Late."""
+    click.echo(BANNER)
+    click.echo("Late version 0.1.0")
 
 @cli.group()
 def patch():

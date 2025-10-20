@@ -234,10 +234,36 @@ tokenizer.model_max_length = config['max_seq_length']
 
 def format_for_training(example):
     \"\"\"Simple formatting using chat template - computes loss on full conversation\"\"\"
-    messages = example["messages"]
+    # Support both 'messages' and 'conversations' field names
+    if "messages" in example:
+        messages = example["messages"]
+    elif "conversations" in example:
+        # Convert from 'from'/'value' format to 'role'/'content' format
+        conversations = example["conversations"]
+        messages = []
+        for msg in conversations:
+            role_map = {{"human": "user", "gpt": "assistant", "system": "system"}}
+            role = role_map.get(msg.get("from", ""), msg.get("from", "user"))
+            content = msg.get("value", "")
+            messages.append({{"role": role, "content": content}})
+    else:
+        raise ValueError(f"No messages or conversations field found. Available keys: {{list(example.keys())}}")
     return {{"text": tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=False)}}
 
 logger.info("Applying 'full' loss masking strategy (compute loss on entire conversation)...")
+
+# Filter out examples with None or empty messages
+def has_valid_messages(example):
+    msgs = None
+    if "messages" in example:
+        msgs = example["messages"]
+    elif "conversations" in example:
+        msgs = example["conversations"]
+    return msgs is not None and isinstance(msgs, list) and len(msgs) > 0
+
+dataset = dataset.filter(has_valid_messages)
+logger.info(f"Filtered dataset to {{len(dataset)}} examples with valid messages")
+
 processed_dataset = dataset.map(format_for_training, remove_columns=list(dataset.features))
 logger.info(f"✓ Dataset formatted. Total examples: {{len(processed_dataset)}}")
 """
@@ -252,7 +278,14 @@ tokenizer.model_max_length = config['max_seq_length']
 def preprocess_for_assistant_loss(examples, tokenizer):
     \"\"\"Masks user prompts from loss calculation - only compute loss on assistant responses\"\"\"
     all_input_ids, all_labels = [], []
-    for messages in examples["messages"]:
+    # Support both 'messages' and 'conversations' field names
+    if "messages" in examples:
+        conversation_field = "messages"
+    elif "conversations" in examples:
+        conversation_field = "conversations"
+    else:
+        raise ValueError(f"No messages or conversations field found")
+    for messages in examples[conversation_field]:
         current_input_ids, current_labels = [], []
         if tokenizer.bos_token:
             bos_tokens = tokenizer.encode(tokenizer.bos_token, add_special_tokens=False)
@@ -307,9 +340,9 @@ training_kwargs = {{
     'num_train_epochs': config.get('epochs', 1),
     'per_device_train_batch_size': per_device_batch,
     'gradient_accumulation_steps': gradient_accumulation,
-    'learning_rate': config.get('learning_rate', 2e-5),
+    'learning_rate': float(config.get('learning_rate', 2e-5)),
     'lr_scheduler_type': config.get('lr_scheduler_type', 'linear'),
-    'max_seq_length': config['max_seq_length'],
+    'max_length': config['max_seq_length'],
     'gradient_checkpointing': config.get('gradient_checkpointing', True),
     'logging_steps': 10,
     'save_steps': config.get('save_steps', 50),
@@ -323,7 +356,9 @@ training_kwargs = {{
 if device_type != "cpu":
     # GPU-specific optimizations
     training_kwargs['bf16'] = True
-    training_kwargs['tf32'] = config.get('tf32', True)
+    # Only set tf32 if explicitly enabled (not available on AMD GPUs)
+    if config.get('tf32', False):
+        training_kwargs['tf32'] = True
     training_kwargs['torch_compile'] = config.get('torch_compile', True)
     training_kwargs['optim'] = config.get('optim', 'adamw_torch_fused')
 else:
@@ -339,7 +374,7 @@ training_args = SFTConfig(**training_kwargs)
     if loss_strategy == 'full':
         script = script.replace(
             "training_args = SFTConfig(**training_kwargs)",
-            "training_kwargs['dataset_text_field'] = 'text'\\ntraining_args = SFTConfig(**training_kwargs)"
+            "training_kwargs['dataset_text_field'] = 'text'\ntraining_args = SFTConfig(**training_kwargs)"
         )
 
     script += f"""

@@ -2,7 +2,7 @@
 # Efficient fine-tuning using Parameter-Efficient Fine-Tuning (PEFT)
 
 # Model and Dataset
-base_model: "meta-llama/Meta-Llama-3-8B-Instruct"
+base_model: "unsloth/Meta-Llama-3-8B-Instruct"
 dataset_name: "databricks/databricks-dolly-15k"  # Diverse instruction dataset
 output_model_name: "your-username/llama3-8b-lora-custom"
 output_dir: "/workspace/outputs/llama3-lora/"
