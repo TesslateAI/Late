@@ -104,6 +104,7 @@ import os
 import torch
 import logging
 import requests
+import sys
 {'from unsloth import FastLanguageModel' if use_unsloth else '# Unsloth not enabled'}
 from transformers import AutoModelForCausalLM, AutoTokenizer, TrainingArguments, DataCollatorForLanguageModeling, TrainerCallback
 from datasets import load_dataset
@@ -119,6 +120,9 @@ logger = logging.getLogger(__name__)
 hf_token = "{config.get('hf_token', '')}" or os.environ.get('HF_TOKEN')
 if hf_token:
     os.environ['HF_TOKEN'] = hf_token
+else:
+    logger.error("Huggingface token invalid or not found.")
+    sys.exit(1)
 
 # Detect available hardware
 if torch.cuda.is_available():
