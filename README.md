@@ -130,6 +130,12 @@ pip install unsloth
 python -m venv venv
 source venv/bin/activate  # On Windows: venv\Scripts\activate
 
+# Export your huggingface token
+export HF_TOKEN=<your huggingface token>
+
+# Clone the test dataset
+git clone https://huggingface.co/datasets/yahma/alpaca-cleaned
+
 # Patch environment for ROCm (installs Flash Attention, etc.)
 late patch --arch gfx942  # Replace with your GPU architecture
 ```
