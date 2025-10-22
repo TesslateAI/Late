@@ -146,7 +146,7 @@ late patch --arch gfx942  # Replace with your GPU architecture
 # Create a simple LoRA training config
 cat > quick_lora.yml << EOF
 base_model: "meta-llama/Llama-3.2-3B-Instruct"
-dataset_name: "yahma/alpaca-cleaned"
+dataset_name: "alpaca-cleaned"
 output_model_name: "my-first-lora"
 output_dir: "./outputs/quick-test/"
 training_type: "lora"
