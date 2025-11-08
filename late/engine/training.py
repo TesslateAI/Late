@@ -511,8 +511,8 @@ if os.path.isdir(config['output_dir']) and not config.get('force_restart', False
     )
     if checkpoints:
         last_checkpoint = os.path.join(config['output_dir'], checkpoints[-1])
-        logger.info(f"[RESUME] Resuming training from checkpoint: {last_checkpoint}")
-        send_ntfy(f"Resuming training from checkpoint: {checkpoints[-1]}")
+        logger.info(f"[RESUME] Resuming training from checkpoint: {{last_checkpoint}}")
+        send_ntfy(f"Resuming training from checkpoint: {{checkpoints[-1]}}")
 
 # --- 8. Start Training ---
 logger.info("[START] Starting training...")

@@ -1,0 +1,16 @@
+{
+  "base_model": "mistralai/Mistral-7B-Instruct-v0.3",
+  "dataset_name": "alpaca-cleaned",
+  "output_model_name": "my-first-lora",
+  "output_dir": "./outputs/quick-test/",
+  "training_type": "lora",
+  "max_seq_length": 2048,
+  "batch_size": 4,
+  "gradient_accumulation": 4,
+  "epochs": 1,
+  "learning_rate": "2e-4",
+  "lora": {
+    "r": 32,
+    "lora_alpha": 64
+  }
+}
