@@ -89,7 +89,7 @@
 pip install late-training
 
 # Verify installation
-late --version
+late version
 ```
 
 ### Install from GitHub (Development)
@@ -103,7 +103,7 @@ cd Late
 pip install -e .
 
 # Verify installation
-late --version
+late version
 ```
 
 ### Install Dependencies
