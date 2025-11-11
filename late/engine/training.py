@@ -126,9 +126,9 @@ else:
 
 # Detect available hardware
 if torch.cuda.is_available():
-    device_name = torch.cuda.get_device_name('cuda')
+    device_name = torch.cuda.get_device_name(0)
     if hasattr(torch.version, 'hip') and torch.version.hip and 'rocm' in torch.version.hip:
-        logger.info(f"[OK] Detected AMD ROCm GPU: {device_name}")
+        logger.info(f"[OK] Detected AMD ROCm GPU: {{device_name}}")
         device_type = "rocm"
     else:
         logger.info(f"[OK] Detected NVIDIA CUDA GPU: {device_name}")

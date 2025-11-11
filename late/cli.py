@@ -56,7 +56,7 @@ def clear():
 
     # Detect platform
     if torch.cuda.is_available():
-        device_name = torch.cuda.get_device_name('cuda')
+        device_name = torch.cuda.get_device_name(0)
         if hasattr(torch.version, 'hip') and torch.version.hip and 'rocm' in torch.version.hip:
             platform = f"AMD ROCm ({device_name})"
         else:
@@ -269,29 +269,29 @@ def sweep(base_config, sweep_file, params, override, sweep_id, percent_epoch, ma
     from late.engine.sweep_report import generate_sweep_report
     from late.engine.training import run_training_job
     """Run hyperparameter sweeps for LoRA training.
-    
+
     Examples:
         # Sweep learning rate with 25% epoch early stopping
         late sweep config.yml --params learning_rate=1e-4,2e-4,3e-4 --percent-epoch 25
-        
+
         # Sweep multiple parameters with shorter context
         late sweep config.yml --params learning_rate=1e-4,2e-4 lora.r=64,128 --override max_seq_length=2048
-        
+
         # Use a sweep file
         late sweep config.yml --sweep-file my_sweep.sweep
-        
+
         # Add to queue instead of running immediately
         late sweep config.yml --sweep-file my_sweep.sweep --add-to-queue overnight.qml
     """
     from pathlib import Path
-    
+
     # Build sweep config
     sweep_config = {'sweep_parameters': {}, 'overrides': {}}
-    
+
     # Add sweep ID if provided
     if sweep_id:
         sweep_config['sweep_id'] = sweep_id
-    
+
     # Add early stopping config
     if percent_epoch or max_steps:
         sweep_config['early_stop'] = {}
@@ -299,14 +299,14 @@ def sweep(base_config, sweep_file, params, override, sweep_id, percent_epoch, ma
             sweep_config['early_stop']['percent_epoch'] = percent_epoch
         if max_steps:
             sweep_config['early_stop']['max_steps'] = max_steps
-    
+
     # Parse parameters and overrides
     all_params = []
     if params:
         all_params.extend(params)
     if override:
         all_params.extend([f"override.{o}" for o in override])
-    
+
     # Create sweep configs
     if sweep_file:
         configs = create_sweep_configs(base_config, sweep_file)
@@ -321,13 +321,13 @@ def sweep(base_config, sweep_file, params, override, sweep_id, percent_epoch, ma
     else:
         click.echo("Error: Must provide either --sweep-file or --params")
         return
-    
+
     # Save sweep configs
     config_paths, sweep_dir = save_sweep_configs(configs)
-    
+
     click.echo(f"📋 Generated {len(config_paths)} sweep configurations")
     click.echo(f"📁 Saved to: {sweep_dir}")
-    
+
     if add_to_queue:
         # Add all configs to queue
         for config_path in config_paths:
@@ -339,11 +339,11 @@ def sweep(base_config, sweep_file, params, override, sweep_id, percent_epoch, ma
         for i, config_path in enumerate(config_paths):
             click.echo(f"\n--- Running sweep {i+1}/{len(config_paths)} ---")
             run_training_job(config_path)
-            
+
             # Clear memory between runs
             from late.engine.training import clear_memory
             clear_memory()
-        
+
         # Generate report
         click.echo("\n📊 Generating sweep report...")
         try:
@@ -351,7 +351,7 @@ def sweep(base_config, sweep_file, params, override, sweep_id, percent_epoch, ma
             click.echo(f"✅ Sweep report saved to: {report_path}")
         except Exception as e:
             click.echo(f"⚠️ Failed to generate report: {e}")
-        
+
         click.echo(f"\n🎉 Sweep complete! Results in: {sweep_dir}")
 
 @cli.group()
@@ -395,12 +395,12 @@ def delete_queue(queue_name):
 def start_queue(queue_name, resume):
     """Start running all training jobs in a queue sequentially."""
     from late.engine.training import clear_memory
-    
+
     jobs = qm.get_queue_contents(queue_name)
     if not jobs:
         click.echo(f"Queue '{queue_name}' is empty or does not exist.")
         return
-    
+
     # Check for existing progress
     start_index = 0
     if resume:
@@ -413,7 +413,7 @@ def start_queue(queue_name, resume):
     else:
         qm.clear_progress(queue_name)
         click.echo(f"Starting queue '{queue_name}' with {len(jobs)} jobs (fresh start).")
-    
+
     # Check if this is a sweep queue
     is_sweep_queue = False
     sweep_dirs = set()
@@ -427,7 +427,7 @@ def start_queue(queue_name, resume):
                 if sweep_idx + 1 < len(parts):
                     sweep_dir = Path(*parts[:sweep_idx+2])
                     sweep_dirs.add(sweep_dir)
-    
+
     try:
         for i in range(start_index, len(jobs)):
             config_path = jobs[i]
@@ -436,27 +436,27 @@ def start_queue(queue_name, resume):
                 click.echo(f"[WARN] Config file not found, skipping: {config_path}", err=True)
                 qm.save_progress(queue_name, i)
                 continue
-            
+
             # Clear memory before each run
             click.echo("Clearing memory before run...")
             clear_memory()
-            
+
             run_training_job(config_path)
-            
+
             # Save progress after successful completion
             qm.save_progress(queue_name, i)
-            
+
             # Clear memory after each run
             click.echo("Clearing memory after run...")
             clear_memory()
-            
+
             # Small delay between runs to ensure cleanup
             import time
             time.sleep(2)
-        
+
         click.echo(f"\nQueue '{queue_name}' finished.")
         qm.clear_progress(queue_name)  # Clear progress on successful completion
-        
+
         # Generate sweep reports if this was a sweep queue
         if is_sweep_queue and sweep_dirs:
             click.echo("\n📊 Generating sweep reports...")
@@ -467,7 +467,7 @@ def start_queue(queue_name, resume):
                     click.echo(f"✅ Sweep report saved to: {report_path}")
                 except Exception as e:
                     click.echo(f"⚠️ Failed to generate report for {sweep_dir}: {e}")
-                    
+
     except KeyboardInterrupt:
         click.echo(f"\n\n⚠️ Queue interrupted. Progress saved at job {i+1}/{len(jobs)}")
         click.echo(f"Run 'late queue start {queue_name}' to resume.")
