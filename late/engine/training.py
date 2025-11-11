@@ -104,6 +104,7 @@ import os
 import torch
 import logging
 import requests
+import sys
 {'from unsloth import FastLanguageModel' if use_unsloth else '# Unsloth not enabled'}
 from transformers import AutoModelForCausalLM, AutoTokenizer, TrainingArguments, DataCollatorForLanguageModeling, TrainerCallback
 from datasets import load_dataset
@@ -119,15 +120,18 @@ logger = logging.getLogger(__name__)
 hf_token = "{config.get('hf_token', '')}" or os.environ.get('HF_TOKEN')
 if hf_token:
     os.environ['HF_TOKEN'] = hf_token
+else:
+    logger.error("Huggingface token invalid or not found.")
+    sys.exit(1)
 
 # Detect available hardware
 if torch.cuda.is_available():
-    device_name = torch.cuda.get_device_name(0)
-    if hasattr(torch.version, 'hip') and 'rocm' in torch.version.hip:
-        logger.info(f"[OK] Detected AMD ROCm GPU: {{device_name}}")
+    device_name = torch.cuda.get_device_name('cuda')
+    if hasattr(torch.version, 'hip') and torch.version.hip and 'rocm' in torch.version.hip:
+        logger.info(f"[OK] Detected AMD ROCm GPU: {device_name}")
         device_type = "rocm"
     else:
-        logger.info(f"[OK] Detected NVIDIA CUDA GPU: {{device_name}}")
+        logger.info(f"[OK] Detected NVIDIA CUDA GPU: {device_name}")
         device_type = "cuda"
 else:
     logger.info("[INFO] No GPU detected. Running on CPU. Training will be slower.")
@@ -147,21 +151,21 @@ def send_ntfy(message, title="Late Trainer"):
         return
     try:
         requests.post(
-            f"https://ntfy.sh/{{ntfy_topic}}",
+            f"https://ntfy.sh/{ntfy_topic}",
             data=message.encode('utf-8'),
-            headers={{"Title": title, "Priority": "default", "Tags": "rocket"}}
+            headers={"Title": title, "Priority": "default", "Tags": "rocket"}
         )
-        logger.info(f"[INFO] Notification sent to ntfy topic: {{ntfy_topic}}")
+        logger.info(f"[INFO] Notification sent to ntfy topic: {ntfy_topic}")
     except Exception as e:
-        logger.error(f"[WARN] Failed to send ntfy notification: {{e}}")
+        logger.error(f"[WARN] Failed to send ntfy notification: {e}")
 
 class NtfyCheckpointCallback(TrainerCallback):
     \"\"\"A custom TrainerCallback to send ntfy notifications on checkpoint saves.\"\"\"
     def on_save(self, args, state, control, **kwargs):
-        checkpoint_path = os.path.join(args.output_dir, f"checkpoint-{{state.global_step}}")
-        logger.info(f"[SAVE] Checkpoint saved to {{checkpoint_path}}. Sending notification...")
+        checkpoint_path = os.path.join(args.output_dir, f"checkpoint-{state.global_step}")
+        logger.info(f"[SAVE] Checkpoint saved to {checkpoint_path}. Sending notification...")
         send_ntfy(
-            f"[OK] Checkpoint saved at step {{state.global_step}}.",
+            f"[OK] Checkpoint saved at step {state.global_step}.",
             title="Checkpoint Saved"
         )
         return control
@@ -171,13 +175,13 @@ if config.get('report_to_wandb', False):
     os.environ.setdefault("WANDB_PROJECT", "Late-Training-Runs")
     if sweep_metadata:
         # Add sweep tags to W&B
-        os.environ["WANDB_TAGS"] = f"{{sweep_metadata['sweep_id']}}"
-        logger.info(f"W&B reporting enabled for sweep: {{sweep_metadata['sweep_id']}}")
+        os.environ["WANDB_TAGS"] = f"{sweep_metadata['sweep_id']}"
+        logger.info(f"W&B reporting enabled for sweep: {sweep_metadata['sweep_id']}")
     else:
         logger.info("W&B reporting is enabled.")
 
 # --- 3. Model and Tokenizer Loading ---
-logger.info(f"Loading base model: {{config['base_model']}}")
+logger.info(f"Loading base model: {config['base_model']}")
 
 # Configure model loading based on available hardware
 if device_type == "cpu":
@@ -187,7 +191,7 @@ if device_type == "cpu":
     logger.info("[INFO] Using CPU with float32 precision")
 else:
     dtype = torch.bfloat16
-    device_map = {{'': torch.cuda.current_device()}}
+    device_map = {'': torch.cuda.current_device()}
     attn_impl = "flash_attention_2"
     logger.info(f"[INFO] Using GPU with bfloat16 precision and Flash Attention 2")
 
@@ -275,7 +279,7 @@ model.print_trainable_parameters()
             # Use Unsloth's dataset formatting methods
             script += f"""
 # --- 5. Dataset Loading and Preprocessing (Simple Unsloth approach) ---
-logger.info(f"Loading dataset: {{config['dataset_name']}}")
+logger.info(f"Loading dataset: {config['dataset_name']}")
 from datasets import load_dataset
 dataset = load_dataset(config['dataset_name'], split="train")
 tokenizer.model_max_length = config['max_seq_length']
@@ -290,13 +294,13 @@ def format_for_training(example):
         conversations = example["conversations"]
         messages = []
         for msg in conversations:
-            role_map = {{"human": "user", "gpt": "assistant", "system": "system"}}
+            role_map = {"human": "user", "gpt": "assistant", "system": "system"}
             role = role_map.get(msg.get("from", ""), msg.get("from", "user"))
             content = msg.get("value", "")
-            messages.append({{"role": role, "content": content}})
+            messages.append({"role": role, "content": content})
     else:
-        raise ValueError(f"No messages or conversations field found. Available keys: {{list(example.keys())}}")
-    return {{"text": tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=False)}}
+        raise ValueError(f"No messages or conversations field found. Available keys: {list(example.keys())}")
+    return {"text": tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=False)}
 
 # Filter out examples with None or empty messages
 def has_valid_messages(example):
@@ -309,13 +313,13 @@ def has_valid_messages(example):
 
 dataset = dataset.filter(has_valid_messages)
 processed_dataset = dataset.map(format_for_training, remove_columns=list(dataset.features))
-logger.info(f"✓ Dataset formatted for Unsloth. Total examples: {{len(processed_dataset)}}")
+logger.info(f"✓ Dataset formatted for Unsloth. Total examples: {len(processed_dataset)}")
 """
         else:
             # Original formatting for standard training
             script += f"""
 # --- 5. Dataset Loading and Preprocessing (FULL Loss Masking - DEFAULT) ---
-logger.info(f"Loading dataset: {{config['dataset_name']}}")
+logger.info(f"Loading dataset: {config['dataset_name']}")
 dataset = load_dataset(config['dataset_name'], split="train")
 tokenizer.model_max_length = config['max_seq_length']
 
@@ -329,13 +333,13 @@ def format_for_training(example):
         conversations = example["conversations"]
         messages = []
         for msg in conversations:
-            role_map = {{"human": "user", "gpt": "assistant", "system": "system"}}
+            role_map = {"human": "user", "gpt": "assistant", "system": "system"}
             role = role_map.get(msg.get("from", ""), msg.get("from", "user"))
             content = msg.get("value", "")
-            messages.append({{"role": role, "content": content}})
+            messages.append({"role": role, "content": content})
     else:
-        raise ValueError(f"No messages or conversations field found. Available keys: {{list(example.keys())}}")
-    return {{"text": tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=False)}}
+        raise ValueError(f"No messages or conversations field found. Available keys: {list(example.keys())}")
+    return {"text": tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=False)}
 
 logger.info("Applying 'full' loss masking strategy (compute loss on entire conversation)...")
 
@@ -349,16 +353,16 @@ def has_valid_messages(example):
     return msgs is not None and isinstance(msgs, list) and len(msgs) > 0
 
 dataset = dataset.filter(has_valid_messages)
-logger.info(f"Filtered dataset to {{len(dataset)}} examples with valid messages")
+logger.info(f"Filtered dataset to {len(dataset)} examples with valid messages")
 
 processed_dataset = dataset.map(format_for_training, remove_columns=list(dataset.features))
-logger.info(f"✓ Dataset formatted. Total examples: {{len(processed_dataset)}}")
+logger.info(f"✓ Dataset formatted. Total examples: {len(processed_dataset)}")
 """
     else:
         # Assistant-only - mask user prompts from loss
         script += f"""
 # --- 5. Dataset Loading and Preprocessing (ASSISTANT-ONLY Loss Masking) ---
-logger.info(f"Loading dataset: {{config['dataset_name']}}")
+logger.info(f"Loading dataset: {config['dataset_name']}")
 dataset = load_dataset(config['dataset_name'], split="train")
 tokenizer.model_max_length = config['max_seq_length']
 
@@ -398,17 +402,17 @@ def preprocess_for_assistant_loss(examples, tokenizer):
         all_input_ids.append(current_input_ids[:max_len])
         all_labels.append(current_labels[:max_len])
 
-    return {{"input_ids": all_input_ids, "labels": all_labels}}
+    return {"input_ids": all_input_ids, "labels": all_labels}
 
 logger.info("Applying 'assistant_only' loss masking strategy (mask user prompts from loss)...")
 processed_dataset = dataset.map(
     preprocess_for_assistant_loss,
-    fn_kwargs={{"tokenizer": tokenizer}},
+    fn_kwargs={"tokenizer": tokenizer},
     batched=True,
     batch_size=100,
     remove_columns=dataset.column_names,
 )
-logger.info(f"✓ Dataset preprocessed. Total examples: {{len(processed_dataset)}}")
+logger.info(f"✓ Dataset preprocessed. Total examples: {len(processed_dataset)}")
 """
 
     script += f"""
@@ -419,10 +423,10 @@ logger.info("Configuring SFTTrainer...")
 per_device_batch = config.get('batch_size', 1)
 gradient_accumulation = config.get('gradient_accumulation', 16)
 effective_batch_size = per_device_batch * gradient_accumulation
-logger.info(f"Effective batch size: {{effective_batch_size}} ({{per_device_batch}} * {{gradient_accumulation}} accumulation steps)")
+logger.info(f"Effective batch size: {effective_batch_size} ({per_device_batch} * {gradient_accumulation} accumulation steps)")
 
 # Configure precision and optimization based on hardware
-training_kwargs = {{
+training_kwargs = {
     'output_dir': config['output_dir'],
     'num_train_epochs': config.get('epochs', 1),
     'per_device_train_batch_size': per_device_batch,
@@ -436,8 +440,8 @@ training_kwargs = {{
     'save_strategy': "steps",
     'save_total_limit': 5,
     'report_to': ["wandb"] if config.get('report_to_wandb') else "none",
-    'run_name': wandb_run_name_override or f"{{config['output_model_name'].split('/')[-1]}}-{{config.get('training_type', 'sft')}}",
-}}
+    'run_name': wandb_run_name_override or f"{config['output_model_name'].split('/')[-1]}-{config.get('training_type', 'sft')}",
+}
 
 # Add hardware-specific optimizations
 if device_type != "cpu":
@@ -478,13 +482,13 @@ if config.get('ntfy_topic'):
     callbacks.append(NtfyCheckpointCallback())
 
 # Create trainer
-trainer_kwargs = {{
+trainer_kwargs = {
     'model': model,
     'processing_class': tokenizer,
     'args': training_args,
     'train_dataset': processed_dataset,
     'callbacks': callbacks,
-}}
+}
 
 """
 
@@ -507,12 +511,12 @@ if os.path.isdir(config['output_dir']) and not config.get('force_restart', False
     )
     if checkpoints:
         last_checkpoint = os.path.join(config['output_dir'], checkpoints[-1])
-        logger.info(f"[RESUME] Resuming training from checkpoint: {{last_checkpoint}}")
-        send_ntfy(f"Resuming training from checkpoint: {{checkpoints[-1]}}")
+        logger.info(f"[RESUME] Resuming training from checkpoint: {last_checkpoint}")
+        send_ntfy(f"Resuming training from checkpoint: {checkpoints[-1]}")
 
 # --- 8. Start Training ---
 logger.info("[START] Starting training...")
-send_ntfy(f"[START] Starting training job for {{config['base_model']}}")
+send_ntfy(f"[START] Starting training job for {config['base_model']}")
 
 # Handle early stopping for sweeps
 if sweep_metadata and 'early_stop' in sweep_metadata:
@@ -524,12 +528,12 @@ if sweep_metadata and 'early_stop' in sweep_metadata:
         total_steps = len(processed_dataset) // (config.get('batch_size', 1) * config.get('gradient_accumulation', 16))
         max_steps = int(total_steps * percent / 100)
         training_args.max_steps = max_steps
-        logger.info(f"Early stopping at {{percent}}% of epoch ({{max_steps}} steps)")
+        logger.info(f"Early stopping at {percent}% of epoch ({max_steps} steps)")
 
     elif 'max_steps' in early_stop:
         # Use explicit step count
         training_args.max_steps = early_stop['max_steps']
-        logger.info(f"Early stopping at {{early_stop['max_steps']}} steps")
+        logger.info(f"Early stopping at {early_stop['max_steps']} steps")
 
     # Update trainer with new args
     trainer.args = training_args
@@ -546,23 +550,23 @@ send_ntfy("[SUCCESS] Training complete! Starting final save and upload.", title=
 # Save training history for sweep analysis
 if sweep_metadata:
     import json
-    history = {{
+    history = {
         'loss': [log['loss'] for log in trainer.state.log_history if 'loss' in log],
         'steps': [log['step'] for log in trainer.state.log_history if 'loss' in log],
         'sweep_params': sweep_metadata['sweep_params']
-    }}
+    }
     history_path = config['output_dir'] + '/training_history.json'
     with open(history_path, 'w', encoding='utf-8') as f:
         json.dump(history, f)
 
 # --- 9. Save and Upload ---
-logger.info(f"[SAVE] Saving final model to {{config['output_dir']}}...")
+logger.info(f"[SAVE] Saving final model to {config['output_dir']}...")
 trainer.save_model(config['output_dir'])
 tokenizer.save_pretrained(config['output_dir'])
 
 if config.get('upload_to_hub', False):
     try:
-        logger.info(f"📤 Uploading model to Hugging Face Hub: {{config['output_model_name']}}")
+        logger.info(f"📤 Uploading model to Hugging Face Hub: {config['output_model_name']}")
         api = HfApi(token=hf_token if hf_token else None)
         api.create_repo(repo_id=config['output_model_name'], exist_ok=True, private=False)
         api.upload_folder(
@@ -570,14 +574,14 @@ if config.get('upload_to_hub', False):
             repo_id=config['output_model_name'],
             commit_message="Training run with 'Late' library",
         )
-        logger.info(f"[OK] Model successfully uploaded to https://huggingface.co/{{config['output_model_name']}}")
+        logger.info(f"[OK] Model successfully uploaded to https://huggingface.co/{config['output_model_name']}")
         send_ntfy(
-            f"[SUCCESS] Model uploaded to HF Hub: {{config['output_model_name']}}",
+            f"[SUCCESS] Model uploaded to HF Hub: {config['output_model_name']}",
             title="Upload Complete"
         )
     except Exception as e:
-        logger.error(f"[WARN] Error uploading to Hugging Face Hub: {{e}}")
-        send_ntfy(f"[ERROR] Model upload failed: {{e}}", title="Error")
+        logger.error(f"[WARN] Error uploading to Hugging Face Hub: {e}")
+        send_ntfy(f"[ERROR] Model upload failed: {e}", title="Error")
 
 """
     return script
